@@ -12,8 +12,8 @@
 - Awaiting Discord admin to invite bot to the server
 
 **Next Steps:**  
-- Once bot is invited, configure Discord node in n8n
-- Continue building and validating the "Discord Digest" workflow
+- Validate Discord Digest workflow output
+- Continue with integration and production deployment steps
 
 ---
 
@@ -21,9 +21,9 @@
 
 - PRD analyzed and actionable stories identified
 - Local development environment established and validated
-- Discord bot setup initiated
+- Discord bot setup completed
+- First Discord Digest workflow is now working as part of the MVP
 - Step-by-step workflow guidance provided for n8n UI
-- Blocked on Discord bot invitation for further workflow integration
 
 **Upcoming Milestones:**  
 - Complete Discord-to-Slack workflow validation
