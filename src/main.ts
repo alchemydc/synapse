@@ -34,14 +34,13 @@ async function run() {
 
   // Block Kit integration
   logger.info("Formatting digest...");
-  const { start, end } = getDigestWindow(config.DIGEST_WINDOW_HOURS);
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const dateTitle = start.toISOString().slice(0, 10); // YYYY-MM-DD
+  const lookbackMs = config.DIGEST_WINDOW_HOURS * 60 * 60 * 1000;
+  const candidate = new Date(Date.now() - lookbackMs); // now - 24h
+  const { start, end, dateTitle } = require("./utils/time").getUtcDailyWindowFrom(candidate);
   const blocks = buildDigestBlocks({
     summary,
     start,
     end,
-    tz,
     dateTitle,
   });
   const fallback = formatDigest(summary);
