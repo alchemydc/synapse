@@ -3,8 +3,26 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.loadConfig = loadConfig;
 // config/index.ts
 const zod_1 = require("zod");
-const toNum = (v) => v === undefined || v === "" ? undefined : Number(v);
-const toBool = (v) => v === undefined || v === "" ? undefined : String(v).toLowerCase() === "true";
+const toNum = (v) => {
+    if (v === undefined)
+        return undefined;
+    if (typeof v === "string" && v.trim() === "")
+        return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+};
+const toBool = (v) => {
+    if (v === undefined)
+        return undefined;
+    if (typeof v === "string" && v.trim() === "")
+        return undefined;
+    const s = String(v).toLowerCase().trim();
+    if (["true", "1", "yes"].includes(s))
+        return true;
+    if (["false", "0", "no"].includes(s))
+        return false;
+    return undefined;
+};
 const ConfigSchema = zod_1.z.object({
     DISCORD_TOKEN: zod_1.z.string(),
     DISCORD_CHANNELS: zod_1.z.string(),

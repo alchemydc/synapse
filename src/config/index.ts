@@ -1,11 +1,21 @@
 // config/index.ts
 import { z } from "zod";
 
-const toNum = (v: unknown) =>
-  v === undefined || v === "" ? undefined : Number(v);
+const toNum = (v: unknown) => {
+  if (v === undefined) return undefined;
+  if (typeof v === "string" && v.trim() === "") return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
 
-const toBool = (v: unknown) =>
-  v === undefined || v === "" ? undefined : String(v).toLowerCase() === "true";
+const toBool = (v: unknown) => {
+  if (v === undefined) return undefined;
+  if (typeof v === "string" && v.trim() === "") return undefined;
+  const s = String(v).toLowerCase().trim();
+  if (["true", "1", "yes"].includes(s)) return true;
+  if (["false", "0", "no"].includes(s)) return false;
+  return undefined;
+};
 
 const ConfigSchema = z.object({
   DISCORD_TOKEN: z.string(),
