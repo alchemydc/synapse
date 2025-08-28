@@ -9,15 +9,26 @@ function makeMsg(content: string, channelId = "chan", createdAt = "2025-08-28T09
 
 describe("Gemini prompt builder", () => {
   it("builds a digest prompt with numbered messages", () => {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const d1 = new Date("2025-08-28T09:00:00Z").toLocaleString("en-US", {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz,
+    });
+    const d2 = new Date("2025-08-28T10:00:00Z").toLocaleString("en-US", {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz,
+    });
+
     const messages = [
       makeMsg("foo", "chan1", "2025-08-28T09:00:00Z"),
       makeMsg("bar", "chan2", "2025-08-28T10:00:00Z"),
     ];
-    // Actual output uses comma between date and time
-    expect(buildPrompt(messages)).toContain("[1] [chan1 @ 08/28/2025, 03:00 America/Denver] foo");
-    expect(buildPrompt(messages)).toContain("[2] [chan2 @ 08/28/2025, 04:00 America/Denver] bar");
-    expect(buildPrompt(messages)).toContain("Community Digest:");
-    expect(buildPrompt(messages)).toContain("Sections: Key Topics, Decisions, Action Items, Links.");
+    const prompt = buildPrompt(messages);
+
+    expect(prompt).toContain(`[1] [chan1 @ ${d1} ${tz}] foo`);
+    expect(prompt).toContain(`[2] [chan2 @ ${d2} ${tz}] bar`);
+    expect(prompt).toContain("Community Digest:");
+    expect(prompt).toContain("Sections: Key Topics, Decisions, Action Items, Links.");
   });
 
   it("truncates messages to max chars", () => {
