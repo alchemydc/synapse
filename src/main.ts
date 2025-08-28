@@ -6,7 +6,7 @@ import { summarize } from "./services/llm/gemini";
 import { postDigestBlocks } from "./services/slack";
 import { formatDigest, buildDigestBlocks } from "./utils/format";
 import { logger } from "./utils/logger";
-import { getDigestWindow } from "./utils/time";
+import { getUtcDailyWindowFrom } from "./utils/time";
 import { applyMessageFilters } from "./utils/filters";
 
 dotenv.config();
@@ -36,7 +36,7 @@ async function run() {
   logger.info("Formatting digest...");
   const lookbackMs = config.DIGEST_WINDOW_HOURS * 60 * 60 * 1000;
   const candidate = new Date(Date.now() - lookbackMs); // now - 24h
-  const { start, end, dateTitle } = require("./utils/time").getUtcDailyWindowFrom(candidate);
+  const { start, end, dateTitle } = getUtcDailyWindowFrom(candidate);
   const blocks = buildDigestBlocks({
     summary,
     start,

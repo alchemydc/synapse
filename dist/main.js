@@ -29,14 +29,13 @@ async function run() {
     const summary = await (0, gemini_1.summarize)(filteredMessages, config);
     // Block Kit integration
     logger_1.logger.info("Formatting digest...");
-    const { start, end } = (0, time_1.getDigestWindow)(config.DIGEST_WINDOW_HOURS);
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    const dateTitle = start.toISOString().slice(0, 10); // YYYY-MM-DD
+    const lookbackMs = config.DIGEST_WINDOW_HOURS * 60 * 60 * 1000;
+    const candidate = new Date(Date.now() - lookbackMs); // now - 24h
+    const { start, end, dateTitle } = (0, time_1.getUtcDailyWindowFrom)(candidate);
     const blocks = (0, format_1.buildDigestBlocks)({
         summary,
         start,
         end,
-        tz,
         dateTitle,
     });
     const fallback = (0, format_1.formatDigest)(summary);

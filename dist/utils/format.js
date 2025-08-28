@@ -3,6 +3,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.normalizeToSlackMrkdwn = normalizeToSlackMrkdwn;
 exports.truncateSection = truncateSection;
+exports.stripLeadingDigestTitle = stripLeadingDigestTitle;
 exports.buildDigestBlocks = buildDigestBlocks;
 exports.formatDigest = formatDigest;
 // Normalize generic markdown to Slack mrkdwn
@@ -34,7 +35,12 @@ function normalizeToSlackMrkdwn(md) {
         .replace(/^\s*[•*]\s+/gm, "- ")
         .replace(/^\s{1,}-(\s+)/gm, "-$1")
         .replace(/([^\n])\n(-\s)/g, "$1\n\n$2")
-        .replace(/\n{3,}/g, "\n\n");
+        .replace(/\n{3,}/g, "\n\n")
+        // Normalize label emphasis around colon-terminated labels to single *
+        .replace(/(^|\n)-\s+\*{1,2}([^*\n]+:)\*{1,2}(?=\s|$)/g, "$1- *$2*")
+        .replace(/(^|\n)\*{2}([^*\n]+:)\*{1,2}(?=\s|$)/g, "$1*$2*")
+        .replace(/(^|\n)\*{1,2}([^*\n]+:)\*{2}(?=\s|$)/g, "$1*$2*")
+        .replace(/\*\*([^*\n]+:)\*\*/g, "*$1*");
     // Restore code blocks and inline code
     out = out.replace(/__FENCE_(\d+)__/g, (_m, i) => "```" + fences[+i] + "```");
     out = out.replace(/__INL_(\d+)__/g, (_m, i) => "`" + inlines[+i] + "`");
@@ -43,16 +49,20 @@ function normalizeToSlackMrkdwn(md) {
 function truncateSection(text, max = 2800) {
     return text.length <= max ? text : text.slice(0, max - 1) + "…";
 }
+function stripLeadingDigestTitle(s) {
+    // Remove a leading "Community Digest" line (with optional markdown, date, etc.)
+    return s.replace(/^\s*(?:[#*]+\s*)?Community\s+Digest(?:\s*-\s*\d{4}-\d{2}-\d{2})?\s*:?\s*\n?/i, "").replace(/^\*\s*\n/, "").trimStart();
+}
 function buildDigestBlocks(params) {
-    const mrkdwn = normalizeToSlackMrkdwn(params.summary);
-    const range = `Time window: ${params.dateTitle} (${params.tz})`;
-    const blocks = [
-        { type: "header", text: { type: "plain_text", text: `Community Digest (${params.dateTitle})` } },
-        { type: "section", text: { type: "mrkdwn", text: range } },
+    const cleaned = stripLeadingDigestTitle(params.summary);
+    const mrkdwn = normalizeToSlackMrkdwn(cleaned);
+    const range = `Time window: ${params.dateTitle} 00:00–${params.end.toISOString().slice(0, 10)} 00:00 UTC`;
+    return [
+        { type: "header", text: { type: "plain_text", text: `Community Digest — ${params.dateTitle} (UTC)` } },
+        { type: "context", elements: [{ type: "mrkdwn", text: range }] },
         { type: "divider" },
         { type: "section", text: { type: "mrkdwn", text: `*Summary*\n${truncateSection(mrkdwn)}` } }
     ];
-    return blocks;
 }
 // Legacy fallback
 function formatDigest(summary) {

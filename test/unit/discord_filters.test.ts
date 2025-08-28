@@ -3,11 +3,13 @@ import { describe, it, expect } from "vitest";
 import { MessageDTO } from "../../src/services/discord";
 import { isCommand, isLinkOnly, applyMessageFilters } from "../../src/utils/filters";
 
-const config = {
+import type { Config } from "../../src/utils/filters";
+
+const config: Partial<Config> = {
   MIN_MESSAGE_LENGTH: 5,
   EXCLUDE_COMMANDS: true,
   EXCLUDE_LINK_ONLY: true,
-} as any;
+};
 
 describe("Discord message filters", () => {
   it("filters out bot messages and empty content", () => {
