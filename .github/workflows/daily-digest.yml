@@ -34,7 +34,7 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           MAX_SUMMARY_TOKENS: ${{ vars.MAX_SUMMARY_TOKENS }}
           DRY_RUN: ${{ vars.DRY_RUN }}
           DIGEST_WINDOW_HOURS: ${{ vars.DIGEST_WINDOW_HOURS }}
