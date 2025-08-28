@@ -1,32 +1,39 @@
-# Project Synapse Progress Report
+# progress.md
 
-## Current Story: Story 1.1 - Local n8n Setup with Docker Compose
+## Current Status
+- MVP operational end-to-end.
+- Pivot from n8n to TypeScript/Node.js decided due to license restrictions.
+- PRD for Node architecture drafted.
+- Memory bank updated to reflect new approach.
 
-**Status:** Complete  
-- docker-compose.yml created with bind mount for n8n data
-- .env file created with example environment variables
-- Local n8n instance can be started and accessed via web UI
+## What Works
+- Discord connectivity (guild/channel listing, pagination, filtering).
+- Gemini summarization with truncation.
+- Slack posting with mrkdwn and retry.
+- DRY_RUN path for safe testing.
+- Formatting and configuration strategy.
 
-**Blockers:**  
-- Discord bot created with required permissions ("list channels", "view message history")
-- Awaiting Discord admin to invite bot to the server
+## What’s Next
+- Productionization items:
+  - Add configurable message filters (min length, exclude commands, link-only).
+  - Include channel/timestamps in prompt; structured output.
+  - Improve Slack mrkdwn formatting with header/date range.
+  - Persist last processed IDs in .state/last_run.json.
+  - Add GitHub Actions daily workflow with secrets.
+  - Strengthen config validation and diagnostics.
+  - Add unit tests for filters and state.
+  - Provide Dockerfile and deployment notes.
 
-**Next Steps:**  
-- Validate Discord Digest workflow output
-- Continue with integration and production deployment steps
+## Known Issues
+- n8n artifacts are deprecated; keep for reference only (do not deploy).
+- Need rate-limit tuning for Discord at scale.
+- Env validation diagnostics.
+- Prompt stability.
+- Slack/Discord rate-limits under higher volume.
 
----
-
-## Overall Project Progress
-
-- PRD analyzed and actionable stories identified
-- Local development environment established and validated
-- Discord bot setup completed
-- First Discord Digest workflow is now working as part of the MVP
-- Step-by-step workflow guidance provided for n8n UI
-
-**Upcoming Milestones:**  
-- Complete Discord-to-Slack workflow validation
-- Securely store credentials for Discord, Gemini, and Slack in n8n
-- Manually trigger and verify workflow output
-- Proceed to production deployment and forum integration as defined in PRD
+## Decisions Log
+- 2025-08-28: Pivot to Node due to n8n license constraints and flexibility needs.
+- zod config validation adopted.
+- DRY_RUN pattern implemented.
+- discord_debug tool added.
+- Token-budget truncation for Gemini input.

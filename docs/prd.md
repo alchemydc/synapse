@@ -1,102 +1,142 @@
-## **Project Synapse: Product Requirements Document (PRD) - Final Approved Version**
+## Synapse: Community Digest: TypeScript/Node.js App Design
 
-### **Goals and Background Context**
+This document outlines the design for a TypeScript/Node.js application that replicates the functionality of the provided n8n workflow. The goal is to create a script that fetches recent messages from specific community platforms, starting with Discord, summarizes them using the Google Gemini API, and posts the summary to a designated Slack channel.
 
-#### **Goals**
-* Increase operational efficiency by drastically reducing time spent on manual channel monitoring
-* Improve the internal flow of information from the community to the correct teams
-* Enhance ecosystem partner relations through more timely and consistent communication
+### 1. Core Functionality
 
-#### **Background Context**
-Project Synapse aims to solve the significant productivity loss and information delays caused by the manual monitoring of community channels like Discord and forums. This project will introduce an AI-powered workflow to automate the gathering, summarization, and delivery of community insights, ensuring the team is well-informed and can communicate more effectively with ecosystem partners.
+The application will perform the following steps in sequence:
 
-#### **Change Log**
-| Date | Version | Description | Author |
-| :--- | :--- | :--- | :--- |
-| 2025-08-20 | 1.0 | Initial PRD draft based on Project Brief. | John, PM |
-| 2025-08-20 | 2.0 | Major revision to reflect implementation on the n8n platform. | Winston, Architect |
-| 2025-08-20 | 2.2 | Refined epics to follow a developer-centric, vertical-slice approach (local-first, Discord-only MVP). | Winston, Architect |
+1. Fetch Channels: Retrieve a list of all channels from the Discord server of interest.
+2. Filter Channels: Select a predefined list of "interesting" channels to monitor.
+3. Fetch Messages: For each selected channel, retrieve the most recent messages.
+4. Filter Messages: Keep only non-empty messages created within the time period of interest (default 24 hours).
+5. Aggregate Content: Combine the author and content of the filtered messages into a format appropriate for summarization via LLM.
+6. Summarize: Send the aggregated text to an LLM (initially Google Gemini via API) for summarization.
+7. Format for Slack: Convert the Markdown summary from Gemini into Slack's mrkdwn format.
+8. Post to Slack: Send the formatted summary to a specified Slack channel.
 
----
-### **Requirements**
+### 2. Project Structure
 
-#### **Functional**
-* **FR1:** The system must be able to connect to a specified Discord server and crawl new messages from designated public channels.
-* **FR2:** The system must be able to connect to a specified web forum and crawl new posts from designated sections.
-* **FR3:** The system must use the Google Gemini API to generate a concise summary from the text content gathered from all sources.
-* **FR4:** The system must post the generated summary as a single message to a specified Slack channel.
-* **FR5:** The entire process (crawl, summarize, post) must be configured to run automatically once per day.
-* **FR6:** All system settings (e.g., channel names, forum URL, webhook) must be managed through the n8n interface for the MVP.
+```text
+synapse/
+├── src/
+│   ├── main.ts             # Main application entry point
+│   ├── services/
+│   │   ├── discord.ts      # Discord API interactions
+│   │   ├── gemini.ts       # Google Gemini API interactions
+│   │   ├── slack.ts        # Slack API interactions
+│   └── utils/
+│       ├── formatter.ts    # Markdown to mrkdwn conversion
+│       └── logger.ts       # Logging utility
+├── .env                    # Environment variables (API keys, IDs)
+├── package.json            # Project dependencies and scripts
+└── tsconfig.json           # TypeScript compiler configuration
+```
 
-#### **Non-Functional**
-* **NFR1:** The implementation will be built on the **n8n workflow automation platform**.
-* **NFR2:** The n8n application must be containerized using Docker and be runnable for local development via Docker Compose.
-* **NFR3:** The production deployment target for the n8n instance is Google Kubernetes Engine (GKE) on the Google Cloud Platform.
-* **NFR4:** The monthly cost for Google Gemini API usage must not exceed $10.
-* **NFR5:** The system must respect and gracefully handle API rate limits from all external services, configured within the n8n workflow.
-* **NFR6:** The initial research phase has been **completed**, and the decision has been made to adapt a FOSS solution (n8n).
+### 3. Key Dependencies
 
----
-### **Technical Assumptions**
+We'll use the following npm packages to interact with the required services and manage the application:
 
-* **Repository Structure:** The project repository will contain the **configuration and infrastructure-as-code files** needed to deploy and manage our self-hosted n8n instance.
-* **Service Architecture:** The architecture is a **Workflow-based Architecture**. The core logic will be encapsulated within one or more workflows on the n8n platform.
-* **Testing requirements:** Testing will focus on **end-to-end workflow validation**, which involves manually triggering the workflow with test data and verifying the output.
-* **Core Technology Stack:**
-    * **Orchestration Platform:** n8n (self-hosted)
-    * **Local Environment:** Docker and Docker Compose 
-    * **Cloud Provider:** Google Cloud Platform (GCP) 
-    * **Production Host:** Google Kubernetes Engine (GKE) 
-    * **LLM Provider:** Google Gemini API 
+- discord.js: The official Node.js library for the Discord API.
+- @google/generative-ai: The official SDK for the Google Gemini API.
+- @slack/web-api: The official library for the Slack Web API.
+- dotenv: To load environment variables from the .env file.
+- typescript: The TypeScript compiler.
+- ts-node: To run TypeScript files directly without pre-compilation.
 
----
-### **Epics**
+### 4. Component Design & Logic
 
-#### **Epic 1: Local Foundation & Discord MVP Pipeline**
-**Goal:** Establish the local development environment and build a complete, end-to-end pipeline that can crawl **Discord**, summarize the content, and deliver a digest to Slack.
+#### src/main.ts (Entry Point)
 
-* **Story 1.1: Local n8n Setup with Docker Compose**
-    * **As a Developer,** I want to run n8n locally using a single Docker Compose command, so that I have a consistent environment for building the workflow.
-    * **Acceptance Criteria:**
-        1.  A `docker-compose.yml` file exists in the project repository.
-        2.  Running `docker-compose up` successfully starts a local n8n instance.
-        3.  The instance is configured to use an `.env` file for local secrets and settings.
+This file will orchestrate the entire workflow.
 
-* **Story 1.2: Build and Validate Discord-to-Slack Workflow**
-    * **As a Developer,** I want to build the complete Discord digest workflow in my local n8n instance, so that I can test and verify all integrations and logic before deploying.
-    * **Acceptance Criteria:**
-        1.  A "Discord Digest" workflow is created in the local n8n instance.
-        2.  Credentials for Discord, Gemini, and Slack are securely stored.
-        3.  When manually triggered, the workflow successfully crawls the specified Discord channel.
-        4.  The workflow successfully calls the Gemini API with the Discord text and receives a summary.
-        5.  The final summary is correctly posted to a designated test Slack channel.
+1. Initialization:
+   - Load environment variables using dotenv.
+   - Initialize the Discord, Gemini, and Slack clients.
+2. Execution Flow:
+   - Call the `discord.ts` service to get all channels from the specified guild.
+   - Filter these channels against a hardcoded list of "interesting" channel IDs.
+   - Loop through the filtered channels and call `discord.ts` to fetch recent messages.
+   - Filter the messages based on timestamp (last 365 days) and content (not empty).
+   - Aggregate the message content into a single string, formatted as `author: <username>, message: <content>`.
+   - Pass the aggregated string to the `gemini.ts` service to get a summary.
+   - Use the `formatter.ts` utility to convert the summary to Slack's mrkdwn.
+   - Call the `slack.ts` service to post the final summary.
+3. Error Handling:
+   - Implement a global try...catch block to handle any exceptions during the process and log them using the logger.
 
----
-#### **Epic 2: Production Deployment of Discord Pipeline**
-**Goal:** Deploy the n8n platform to GKE and automate the validated Discord-only workflow.
+#### src/services/discord.ts
 
-* **Story 2.1: Deploy n8n to GKE**
-    * **As a Developer,** I want to deploy the self-hosted n8n instance to Google Kubernetes Engine, so that we have a stable and scalable production platform.
-    * **Acceptance Criteria:**
-        1.  A production-ready n8n deployment is running on GKE.
-        2.  The instance is configured with a persistent volume and secure networking.
-        3.  The production n8n web UI is accessible via a secure HTTPS endpoint.
+This module will handle all communication with the Discord API.
 
-* **Story 2.2: Deploy and Automate Production Workflow**
-    * **As a System,** I want the validated Discord workflow to be deployed and automated in the production GKE instance, so that the daily digest is delivered reliably.
-    * **Acceptance Criteria:**
-        1.  The "Discord Digest" workflow is imported into the production n8n instance.
-        2.  Separate, secure production credentials for all services are configured.
-        3.  The `Cron` trigger is enabled to run the workflow automatically every 24 hours.
+- DiscordService class:
+  - Constructor: Initializes the discord.js client with the bot token from environment variables.
+  - `getChannels(guildId: string)`: Fetches and returns all channels for a given guild ID.
+  - `getRecentMessages(channelId: string, limit: number)`: Fetches the last `limit` messages from a specific channel.
 
----
-#### **Epic 3: Forum Integration**
-**Goal:** Expand the bot's capabilities to include crawling web forums, making the daily digest more comprehensive.
+#### src/services/gemini.ts
 
-* **Story 3.1: Add Forum Crawler to Workflow**
-    * **As a Developer,** I want to add a Forum crawling step to the existing n8n workflow, so that content from the Zcash Community Forum is included in the daily digest.
-    * **Acceptance Criteria:**
-        1.  The existing workflow is updated to include a new step that crawls the forum's JSON endpoints.
-        2.  The text from both the Discord and Forum crawlers is aggregated *before* being sent to the Gemini API.
-        3.  The final Slack message is updated to indicate that it now includes both sources.
-        4.  The updated workflow is validated in the local environment before being deployed to production.
+This module will manage interactions with the Google Gemini API.
+
+- GeminiService class:
+  - Constructor: Initializes the Gemini client with the API key.
+  - `summarizeMessages(messages: string)`:
+    - Takes the aggregated message string as input.
+    - Constructs a prompt, e.g., “Provide a succinct summary of the following Discord messages...”.
+    - Sends the request to the `gemini-1.5-flash` model.
+    - Returns the generated summary text.
+
+#### src/services/slack.ts
+
+This module will be responsible for sending messages to Slack.
+
+- SlackService class:
+  - Constructor: Initializes the Slack `WebClient` with the bot token.
+  - `sendMessage(channel: string, text: string)`: Posts the provided text to the specified Slack channel.
+
+#### src/utils/formatter.ts
+
+This utility module will contain the logic for text formatting.
+
+- `markdownToMrkdwn(text: string)` function:
+  - Converts Markdown headings (`#`) to bold (`*text*`).
+  - Converts Markdown bold (`**text**`) to Slack bold (`*text*`).
+  - Converts Markdown italics (`*text*`) to Slack italics (`_text_`).
+  - Converts Markdown list items (`*` or `-`) to Slack bullet points (`•`).
+  - Returns the formatted string.
+
+### 5. Configuration (.env)
+
+Sensitive information and configuration details will be stored in a `.env` file to keep them out of the source code.
+
+```env
+# Discord Bot Token
+DISCORD_BOT_TOKEN=your_discord_bot_token_here
+
+# Google Gemini API Key
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Slack Bot Token
+SLACK_BOT_TOKEN=your_slack_bot_token_here
+
+# Discord Server (Guild) ID
+DISCORD_GUILD_ID=978714252934258779
+
+# Slack Channel to post the digest
+SLACK_CHANNEL_ID=synapse-testing
+```
+
+### 6. Getting Started & Execution
+
+1. Installation:
+   ```bash
+   npm install
+   ```
+2. Configuration: Create a `.env` file and populate it with the necessary API keys and IDs.
+3. Execution:
+   ```bash
+   npx ts-node src/main.ts
+   ```
+4. Scheduling: For automated execution, schedule the script via cron or a scheduled task service.
+
+This design provides a robust and scalable foundation for building the Discord Digest application, mirroring the logic of your n8n workflow in a maintainable and customizable TypeScript/Node.js environment.
