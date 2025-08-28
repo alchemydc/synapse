@@ -1,0 +1,40 @@
+{
+  "name": "synapse-digest-bot",
+  "version": "0.1.0",
+  "description": "Community Digest AI Bot for Discord → LLM → Slack",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "echo \"TODO: add eslint\" && exit 0",
+    "discord:debug": "ts-node-dev --transpile-only src/tools/discord_debug.ts"
+  },
+  "keywords": [
+    "discord",
+    "slack",
+    "digest",
+    "llm",
+    "community"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "pino": "^8.17.0",
+    "date-fns": "^3.6.0",
+    "zod": "^3.22.4",
+    "p-retry": "^7.0.0",
+    "discord.js": "^14.14.1",
+    "@slack/web-api": "^7.2.0",
+    "@google/generative-ai": "^0.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "ts-node-dev": "^2.0.0",
+    "vitest": "^1.6.0",
+    "@types/node": "^20.11.30"
+  }
+}

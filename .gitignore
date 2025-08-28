@@ -1,0 +1,4 @@
+.bmad-core/
+.env
+n8n_data/
+node_modules

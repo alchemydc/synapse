@@ -1,2 +1,43 @@
-# synapse
-POC tool for monitoring community and ecosystem feeds and providing scheduled digests
+# Synapse Digest AI Bot
+
+Automates monitoring of Discord channels, summarizes with LLM, and posts daily digests to Slack.
+
+## Quickstart
+
+1. Clone the repo and run `npm install`
+2. Copy `.env.example` to `.env` and fill in your API keys and config
+3. Run in dev mode: `npm run dev`
+4. Build: `npm run build`
+5. Start: `npm start`
+6. Run tests: `npm test`
+
+## Scripts
+
+- `dev`: ts-node-dev --respawn --transpile-only src/main.ts
+- `build`: tsc -p tsconfig.json
+- `start`: node dist/main.js
+- `test`: vitest run
+- `test:watch`: vitest
+- `lint`: TODO: add eslint
+
+## Project Structure
+
+- src/main.ts: CLI entry
+- src/config: config loader
+- src/services: discord, llm, slack service stubs
+- src/utils: logger, formatter, time helpers
+- test/unit: vitest unit tests
+
+## Dependencies
+
+See package.json for runtime and dev dependencies.
+
+## Message Filtering
+
+The bot supports configurable message filters via environment variables:
+
+- `MIN_MESSAGE_LENGTH` (default: 20): Minimum message length to include.
+- `EXCLUDE_COMMANDS` (default: true): Exclude messages starting with `!` or `/` (commands).
+- `EXCLUDE_LINK_ONLY` (default: true): Exclude messages that are only a link.
+
+Set these in your `.env` file to control which Discord messages are summarized. See `.env.example` for details.
