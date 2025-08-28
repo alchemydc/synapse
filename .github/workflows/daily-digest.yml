@@ -2,21 +2,31 @@ name: Daily Digest
 
 on:
   schedule:
-    - cron: '0 13 * * *' # Runs daily at 13:00 UTC
+    - cron: "0 13 * * *" # daily at 13:00 UTC
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-digest-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   digest:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
+          cache: "npm"
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Run digest bot
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
@@ -25,11 +35,11 @@ jobs:
           SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
-          MAX_SUMMARY_TOKENS: ${{ secrets.MAX_SUMMARY_TOKENS }}
-          DRY_RUN: false
-          DIGEST_WINDOW_HOURS: 24
-          LOG_LEVEL: info
-          MIN_MESSAGE_LENGTH: 20
-          EXCLUDE_COMMANDS: true
-          EXCLUDE_LINK_ONLY: true
+          MAX_SUMMARY_TOKENS: ${{ vars.MAX_SUMMARY_TOKENS }}
+          DRY_RUN: ${{ vars.DRY_RUN }}
+          DIGEST_WINDOW_HOURS: ${{ vars.DIGEST_WINDOW_HOURS }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+          MIN_MESSAGE_LENGTH: ${{ vars.MIN_MESSAGE_LENGTH }}
+          EXCLUDE_COMMANDS: ${{ vars.EXCLUDE_COMMANDS }}
+          EXCLUDE_LINK_ONLY: ${{ vars.EXCLUDE_LINK_ONLY }}
         run: npm start
