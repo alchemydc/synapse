@@ -3,10 +3,11 @@ import dotenv from "dotenv";
 import { loadConfig, Config } from "./config";
 import { fetchMessages } from "./services/discord";
 import { summarize } from "./services/llm/gemini";
-import { postDigest, postDigestBlocks } from "./services/slack";
+import { postDigestBlocks } from "./services/slack";
 import { formatDigest, buildDigestBlocks } from "./utils/format";
 import { logger } from "./utils/logger";
 import { getDigestWindow } from "./utils/time";
+import { applyMessageFilters } from "./utils/filters";
 
 dotenv.config();
 const config: Config = loadConfig();
@@ -23,8 +24,13 @@ async function run() {
     config.DIGEST_WINDOW_HOURS
   );
   logger.info(`Fetched ${messages.length} messages.`);
+
+  logger.info("Applying filters...");
+  const filteredMessages = applyMessageFilters(messages, config);
+  logger.info(`Filtered to ${filteredMessages.length} messages.`);
+
   logger.info("Summarizing messages...");
-  const summary = await summarize(messages.map(m => m.content), config);
+  const summary = await summarize(filteredMessages, config);
 
   // Block Kit integration
   logger.info("Formatting digest...");

@@ -1,17 +1,22 @@
 # progress.md
 
 ## Current Status
-- MVP operational end-to-end.
+- MVP operational end-to-end with Slack Block Kit digest, message filters, and prompt enrichment.
 - Pivot from n8n to TypeScript/Node.js decided due to license restrictions.
 - PRD for Node architecture drafted.
+- GitHub Actions workflow added for daily scheduled runs.
+- Zod config parsing fixed to apply defaults when envs are missing.
 - Memory bank updated to reflect new approach.
 
 ## What Works
 - Discord connectivity (guild/channel listing, pagination, filtering).
+- Configurable message filters via env.
 - Gemini summarization with truncation.
-- Slack posting with mrkdwn and retry.
+- Slack posting with Block Kit payloads and mrkdwn normalization.
+- Enriched prompt with channel name and timestamp; structured sections.
 - DRY_RUN path for safe testing.
 - Formatting and configuration strategy.
+- Zod preprocessors for robust default handling.
 
 ## What’s Next
 - Productionization items:
@@ -28,12 +33,16 @@
 - n8n artifacts are deprecated; keep for reference only (do not deploy).
 - Need rate-limit tuning for Discord at scale.
 - Env validation diagnostics.
-- Prompt stability.
+- Prompt stability and Slack formatting polish for edge cases.
 - Slack/Discord rate-limits under higher volume.
 
 ## Decisions Log
 - 2025-08-28: Pivot to Node due to n8n license constraints and flexibility needs.
-- zod config validation adopted.
+- Slack Block Kit adopted for digest formatting.
+- Configurable filters (min length, commands, link-only) added.
+- Gemini prompt enriched with channel/timestamp and structured sections.
+- Zod preprocessors fixed to enable defaults.
+- GitHub Actions workflow added for daily schedule.
 - DRY_RUN pattern implemented.
 - discord_debug tool added.
 - Token-budget truncation for Gemini input.

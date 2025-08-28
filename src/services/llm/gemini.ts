@@ -1,30 +1,47 @@
 // services/llm/gemini.ts
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 import { Config } from "../../config";
+import { MessageDTO } from "../discord";
 
-function buildPrompt(messages: string[]): string {
+function formatMessageLine(msg: MessageDTO): string {
+  const date = new Date(msg.createdAt);
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const dateStr = date.toLocaleString("en-US", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: tz,
+  });
+  return `[${msg.channelId} @ ${dateStr} ${tz}] ${msg.content}`;
+}
+
+function buildPrompt(messages: MessageDTO[]): string {
   return [
     "Community Digest:",
-    "Summarize the following Discord messages for key topics, decisions, and action items.",
+    "Summarize the following Discord messages. For each section, produce concise bullets.",
+    "Sections: Key Topics, Decisions, Action Items, Links.",
     "",
-    ...messages.map((m, i) => `[${i + 1}] ${m}`),
+    ...messages.map((m, i) => `[${i + 1}] ${formatMessageLine(m)}`),
     "",
     "Digest:"
   ].join("\n");
 }
 
-function truncateMessages(messages: string[], maxChars: number): string[] {
+function truncateMessages(messages: MessageDTO[], maxChars: number): MessageDTO[] {
   let total = 0;
-  const out: string[] = [];
+  const out: MessageDTO[] = [];
   for (const m of messages) {
-    if (total + m.length > maxChars) break;
+    if (total + m.content.length > maxChars) break;
     out.push(m);
-    total += m.length;
+    total += m.content.length;
   }
   return out;
 }
 
-export async function summarize(messages: string[], config: Config): Promise<string> {
+export async function summarize(messages: MessageDTO[], config: Config): Promise<string> {
   const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
   const model: GenerativeModel = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
 
@@ -46,4 +63,4 @@ export async function summarize(messages: string[], config: Config): Promise<str
 }
 
 // For testing
-export { buildPrompt, truncateMessages };
+export { buildPrompt, truncateMessages, formatMessageLine };

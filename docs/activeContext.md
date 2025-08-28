@@ -1,7 +1,12 @@
 # activeContext.md
 
 ## Current Work Focus
-- MVP pipeline implemented and operational: Discord fetch → Gemini summarize → Slack post.
+- MVP pipeline operational: Discord fetch → Gemini summarize → Slack Block Kit post.
+- Slack digest now uses Block Kit payloads with mrkdwn normalization.
+- Configurable message filters (min length, exclude commands, link-only) applied before summarization.
+- Gemini prompt enriched with channel name and timestamp; requests structured sections.
+- Zod config parsing fixed to apply defaults when envs are missing.
+- GitHub Actions workflow added for daily scheduled runs.
 - Replace remaining n8n references and artifacts in documentation.
 
 ## Recent Changes
@@ -11,27 +16,26 @@
 - Successful end-to-end run: Discord messages fetched, summarized, posted to Slack.
 
 ## Next Steps
-- Productionization backlog:
-  - Add configurable message filters (min length, exclude commands, link-only).
-  - Include channel names and timestamps in prompt; structured digest sections (Highlights, Decisions, Action Items, Links).
-  - Improve Slack mrkdwn formatting with header and date range.
-  - Persist last processed message IDs per channel in `.state/last_run.json` for idempotency.
-  - Add GitHub Actions daily workflow and use secrets.
-  - Strengthen config validation/diagnostics (fail fast with helpful messages).
-  - Add unit tests for filters and state.
-  - Provide Dockerfile and deployment notes.
+- Idempotency and state persistence deferred for MVP (daily schedule sufficient).
+- Dockerfile and deployment notes pending.
+- Refine Slack sectioning and formatting as needed.
+- Monitor LLM prompt stability and Slack formatting edge cases.
 
 ## Active Decisions & Considerations
 - Pure Node architecture for flexibility and license clarity.
-- Daily cadence with configurable time window (default 24h).
+- Daily cadence with no persisted state for MVP (scheduled via GitHub Actions).
 - Strict error handling, retries with backoff, and request budgeting.
 - Structured digest sections.
-- Idempotent processing via state.
+- Block Kit sections with mrkdwn-safe formatting.
+- Filters applied before summarization.
+- Zod preprocessors return undefined for missing envs to enable defaults.
 
 ## Patterns & Preferences
 - Modular services, functional utilities, and typed interfaces.
 - Twelve-Factor-style configuration via environment variables.
 - Minimal data retention; log PII-safe metadata only.
+- ETL pipeline: Discord → Filters → LLM → Formatter → Slack Block Kit.
+- Block Kit payloads for Slack; mrkdwn normalization.
 
 ## Learnings & Insights
 - Direct API integration offers better control than workflow platforms.

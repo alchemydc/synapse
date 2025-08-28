@@ -31,3 +31,13 @@ Automates monitoring of Discord channels, summarizes with LLM, and posts daily d
 ## Dependencies
 
 See package.json for runtime and dev dependencies.
+
+## Message Filtering
+
+The bot supports configurable message filters via environment variables:
+
+- `MIN_MESSAGE_LENGTH` (default: 20): Minimum message length to include.
+- `EXCLUDE_COMMANDS` (default: true): Exclude messages starting with `!` or `/` (commands).
+- `EXCLUDE_LINK_ONLY` (default: true): Exclude messages that are only a link.
+
+Set these in your `.env` file to control which Discord messages are summarized. See `.env.example` for details.

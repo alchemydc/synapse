@@ -3,14 +3,30 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.summarize = summarize;
 exports.buildPrompt = buildPrompt;
 exports.truncateMessages = truncateMessages;
+exports.formatMessageLine = formatMessageLine;
 // services/llm/gemini.ts
 const generative_ai_1 = require("@google/generative-ai");
+function formatMessageLine(msg) {
+    const date = new Date(msg.createdAt);
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const dateStr = date.toLocaleString("en-US", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: tz,
+    });
+    return `[${msg.channelId} @ ${dateStr} ${tz}] ${msg.content}`;
+}
 function buildPrompt(messages) {
     return [
         "Community Digest:",
-        "Summarize the following Discord messages for key topics, decisions, and action items.",
+        "Summarize the following Discord messages. For each section, produce concise bullets.",
+        "Sections: Key Topics, Decisions, Action Items, Links.",
         "",
-        ...messages.map((m, i) => `[${i + 1}] ${m}`),
+        ...messages.map((m, i) => `[${i + 1}] ${formatMessageLine(m)}`),
         "",
         "Digest:"
     ].join("\n");
@@ -19,10 +35,10 @@ function truncateMessages(messages, maxChars) {
     let total = 0;
     const out = [];
     for (const m of messages) {
-        if (total + m.length > maxChars)
+        if (total + m.content.length > maxChars)
             break;
         out.push(m);
-        total += m.length;
+        total += m.content.length;
     }
     return out;
 }
