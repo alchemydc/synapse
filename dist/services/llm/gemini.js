@@ -6,6 +6,7 @@ exports.truncateMessages = truncateMessages;
 exports.formatMessageLine = formatMessageLine;
 // services/llm/gemini.ts
 const generative_ai_1 = require("@google/generative-ai");
+const logger_1 = require("../../utils/logger");
 function formatMessageLine(msg) {
     const date = new Date(msg.createdAt);
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -43,6 +44,11 @@ function truncateMessages(messages, maxChars) {
     return out;
 }
 async function summarize(messages, config) {
+    if (!config.GEMINI_MODEL || config.GEMINI_MODEL.trim() === "") {
+        logger_1.logger.error("GEMINI_MODEL is empty; check CI env or repository Variables export.");
+        throw new Error("GEMINI_MODEL is required");
+    }
+    logger_1.logger.info("Gemini init", { model: config.GEMINI_MODEL, maxTokens: config.MAX_SUMMARY_TOKENS });
     const genAI = new generative_ai_1.GoogleGenerativeAI(config.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
     // Truncate to fit token budget (roughly 4 chars per token)

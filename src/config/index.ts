@@ -17,13 +17,19 @@ const toBool = (v: unknown) => {
   return undefined;
 };
 
+const toStr = (v: unknown) => {
+  if (v === undefined) return undefined;
+  if (typeof v === "string" && v.trim() === "") return undefined;
+  return String(v);
+};
+
 const ConfigSchema = z.object({
   DISCORD_TOKEN: z.string(),
   DISCORD_CHANNELS: z.string(),
   SLACK_BOT_TOKEN: z.string(),
   SLACK_CHANNEL_ID: z.string(),
   GEMINI_API_KEY: z.string(),
-  GEMINI_MODEL: z.string().default("gemini-1.5-flash"),
+  GEMINI_MODEL: z.preprocess(toStr, z.string()).default("gemini-1.5-flash"),
 
   MAX_SUMMARY_TOKENS: z.preprocess(
     toNum,
@@ -74,14 +80,41 @@ export type Config = {
   EXCLUDE_LINK_ONLY: boolean;
 };
 
+import { logger } from "../utils/logger";
+
 export function loadConfig(): Config {
   const parsed = ConfigSchema.safeParse(process.env);
   if (!parsed.success) {
     throw new Error("Invalid config: " + JSON.stringify(parsed.error.format()));
   }
   const raw = parsed.data;
-  return {
+  const config: Config = {
     ...raw,
     DISCORD_CHANNELS: raw.DISCORD_CHANNELS.split(",").map((id: string) => id.trim()).filter(Boolean),
   };
+
+  // Mask secrets for logging
+  function mask(s: string) {
+    if (!s) return { present: false, len: 0 };
+    return { present: true, len: s.length };
+  }
+
+  logger.info("Config summary", {
+    geminiModel: config.GEMINI_MODEL,
+    dryRun: config.DRY_RUN,
+    digestWindowHours: config.DIGEST_WINDOW_HOURS,
+    maxSummaryTokens: config.MAX_SUMMARY_TOKENS,
+    logLevel: config.LOG_LEVEL,
+    minMessageLength: config.MIN_MESSAGE_LENGTH,
+    excludeCommands: config.EXCLUDE_COMMANDS,
+    excludeLinkOnly: config.EXCLUDE_LINK_ONLY,
+    discordChannelsCount: config.DISCORD_CHANNELS.length,
+    secrets: {
+      GEMINI_API_KEY: mask(process.env.GEMINI_API_KEY || ""),
+      SLACK_BOT_TOKEN: mask(process.env.SLACK_BOT_TOKEN || ""),
+      DISCORD_TOKEN: mask(process.env.DISCORD_TOKEN || ""),
+    },
+  });
+
+  return config;
 }

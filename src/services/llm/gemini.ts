@@ -2,6 +2,7 @@
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 import { Config } from "../../config";
 import { MessageDTO } from "../discord";
+import { logger } from "../../utils/logger";
 
 function formatMessageLine(msg: MessageDTO): string {
   const date = new Date(msg.createdAt);
@@ -42,6 +43,12 @@ function truncateMessages(messages: MessageDTO[], maxChars: number): MessageDTO[
 }
 
 export async function summarize(messages: MessageDTO[], config: Config): Promise<string> {
+  if (!config.GEMINI_MODEL || config.GEMINI_MODEL.trim() === "") {
+    logger.error("GEMINI_MODEL is empty; check CI env or repository Variables export.");
+    throw new Error("GEMINI_MODEL is required");
+  }
+  logger.info("Gemini init", { model: config.GEMINI_MODEL, maxTokens: config.MAX_SUMMARY_TOKENS });
+
   const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
   const model: GenerativeModel = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
 

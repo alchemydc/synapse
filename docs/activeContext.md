@@ -1,6 +1,9 @@
 # activeContext.md
 
 ## Current Work Focus
+
+## Blockers
+- Production is currently blocked: GitHub Actions cannot execute the digest program due to the Gemini model name (GEMINI_MODEL) not being properly read from environment variables. Although GEMINI_MODEL is set as a repository variable, the program receives a blank value, causing the GoogleGenerativeAI SDK to error ("Must provide a model name"). This issue is under investigation and will be addressed next.
 - MVP pipeline operational: Discord fetch → Gemini summarize → Slack Block Kit post.
 - Slack digest now uses Block Kit payloads with mrkdwn normalization.
 - Configurable message filters (min length, exclude commands, link-only) applied before summarization.

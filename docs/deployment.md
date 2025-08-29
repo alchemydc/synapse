@@ -21,12 +21,12 @@ Add the following secrets in GitHub (`Settings → Secrets and variables → Act
 - `SLACK_BOT_TOKEN`: Slack bot token
 - `SLACK_CHANNEL_ID`: Slack channel ID (e.g., `C12345678`)
 - `GEMINI_API_KEY`: Google AI Studio API key
-- `GEMINI_MODEL`: e.g., `gemini-1.5-flash` or `gemini-1.5-pro`
 
 ## 4. GitHub Actions Variables
 
 Add the following variables in GitHub (`Settings → Secrets and variables → Actions → Variables`):
 
+- `GEMINI_MODEL`: e.g., `gemini-1.5-flash` or `gemini-1.5-pro`
 - `MAX_SUMMARY_TOKENS`: e.g., `1024`
 - `DRY_RUN`: `true` (set to `false` after validation)
 - `DIGEST_WINDOW_HOURS`: `24`
