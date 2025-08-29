@@ -1,5 +1,11 @@
 # Memory Bank Summary (2025-08-28)
 
+## Current State (2025-08-29)
+- Production unblocked; GEMINI_MODEL CI issue resolved via repo variable and build-before-start.
+- Daily digest running reliably; config and model validation in place.
+- Default model is gemini-1.5-flash; Gemini 2.0 link rendering is a pending fix.
+- Priorities: make Slack output prettier, implement longer Monday digest window, support multiple Discord servers, add Discourse forum ingestion, explore alternate LLM models, scaffold model listing/validation utility, fix Gemini 2.0 link formatting.
+
 ## Project Brief
 Automated TypeScript/Node.js service to crawl Discord, summarize with LLM (Google Gemini), and post daily digests to Slack. Pivoted from n8n due to license/platform constraints.
 

@@ -3,14 +3,23 @@
 ## Current Work Focus
 
 ## Blockers
-- Production is currently blocked: GitHub Actions cannot execute the digest program due to the Gemini model name (GEMINI_MODEL) not being properly read from environment variables. Although GEMINI_MODEL is set as a repository variable, the program receives a blank value, causing the GoogleGenerativeAI SDK to error ("Must provide a model name"). This issue is under investigation and will be addressed next.
-- MVP pipeline operational: Discord fetch → Gemini summarize → Slack Block Kit post.
-- Slack digest now uses Block Kit payloads with mrkdwn normalization.
-- Configurable message filters (min length, exclude commands, link-only) applied before summarization.
-- Gemini prompt enriched with channel name and timestamp; requests structured sections.
-- Zod config parsing fixed to apply defaults when envs are missing.
-- GitHub Actions workflow added for daily scheduled runs.
-- Replace remaining n8n references and artifacts in documentation.
+- None. Production unblocked; GEMINI_MODEL CI issue resolved via repo variable and build-before-start. All scheduled runs now succeed.
+
+## Recent Changes
+- Added prestart hook to package.json to ensure dist is rebuilt before start.
+- CI workflow now runs npm run build before npm start.
+- Added sanitized config summary logs and Gemini model init logs.
+- Updated deployment docs to clarify GEMINI_MODEL is a repo variable.
+- Improved error handling and validation for model names.
+
+## Next Steps
+- Make Slack output prettier and clearer.
+- Implement longer digest window on Mondays to capture weekend activity.
+- Add support for pulling messages from multiple Discord servers.
+- Add support for pulling messages from Discourse forums.
+- Explore alternate LLM models for summarization; current "gemini-2.5-flash" returns no output, suggesting call failure.
+- Scaffold utility to list available Gemini models and validate model names at runtime.
+- Fix link rendering for Gemini 2.0 output; keep default model gemini-1.5-flash until resolved.
 
 ## Recent Changes
 - Pivoted away from n8n due to license restrictions and platform constraints.

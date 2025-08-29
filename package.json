@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "echo \"TODO: add eslint\" && exit 0",
-    "discord:debug": "ts-node-dev --transpile-only src/tools/discord_debug.ts"
+    "discord:debug": "ts-node-dev --transpile-only src/tools/discord_debug.ts",
+    "models:list": "ts-node-dev --transpile-only src/tools/gemini_list_models.ts"
   },
   "keywords": [
     "discord",
@@ -30,12 +31,14 @@
     "p-retry": "^7.0.0",
     "discord.js": "^14.14.1",
     "@slack/web-api": "^7.2.0",
-    "@google/generative-ai": "^0.5.0"
+    "@google/generative-ai": "^0.5.0",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "typescript": "^5.4.5",
     "ts-node-dev": "^2.0.0",
     "vitest": "^1.6.0",
-    "@types/node": "^20.11.30"
+    "@types/node": "^20.11.30",
+    "@types/node-fetch": "^3.0.3"
   }
 }
