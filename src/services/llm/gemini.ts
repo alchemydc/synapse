@@ -79,6 +79,42 @@ function truncateMessages(messages: MessageDTO[], maxChars: number): MessageDTO[
   return out;
 }
 
+/**
+ * truncateClusters - reduce messages across clusters to fit a global character budget.
+ * Returns new clusters with messages trimmed in chronological order until budget exhausted.
+ * Participants are preserved from original cluster (TODO: recompute from truncated messages).
+ */
+function truncateClusters(clusters: TopicCluster[], maxChars: number): TopicCluster[] {
+  if (!clusters || clusters.length === 0) return [];
+  let total = 0;
+  const result: TopicCluster[] = [];
+
+  outer: for (const c of clusters) {
+    const keptMessages: MessageDTO[] = [];
+    for (const m of c.messages) {
+      const len = m.content ? m.content.length : 0;
+      if (total + len > maxChars) {
+        if (keptMessages.length === 0) {
+          // No room for any message in this cluster; stop processing further clusters.
+          break outer;
+        } else {
+          // Partial cluster preserved; stop after this cluster.
+          result.push({ ...c, messages: keptMessages, participants: c.participants });
+          break outer;
+        }
+      }
+      keptMessages.push(m);
+      total += len;
+    }
+    if (keptMessages.length > 0) {
+      result.push({ ...c, messages: keptMessages, participants: c.participants });
+    }
+    if (total >= maxChars) break;
+  }
+
+  return result;
+}
+
 export async function summarize(messages: MessageDTO[], config: Config): Promise<string> {
   if (!config.GEMINI_MODEL || config.GEMINI_MODEL.trim() === "") {
     logger.error("GEMINI_MODEL is empty; check CI env or repository Variables export.");
@@ -120,10 +156,18 @@ export async function summarizeAttributed(clusters: TopicCluster[], config: Conf
   const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
   const model: GenerativeModel = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
 
-  // Build prompt from clusters. To control tokens, we will cap messages per cluster if necessary.
+  // Build prompt from clusters and truncate to token budget.
   const maxChars = config.MAX_SUMMARY_TOKENS * 4;
-  // Flatten messages to estimate length; simple approach: keep clusters but truncate long clusters' messages
-  const prompt = buildAttributedPrompt(clusters, config);
+  const truncatedClusters = truncateClusters(clusters, maxChars);
+  let prompt = buildAttributedPrompt(truncatedClusters, config);
+
+  // If truncation occurred, append a short note so the LLM knows input was truncated.
+  const truncatedOccurred =
+    truncatedClusters.length !== clusters.length ||
+    truncatedClusters.some((tc, idx) => (clusters[idx] ? tc.messages.length !== clusters[idx].messages.length : true));
+  if (truncatedOccurred) {
+    prompt += "\n\n[Note: input truncated to fit token budget]";
+  }
 
   const result = await model.generateContent({
     contents: [{ role: "user", parts: [{ text: prompt }] }],
