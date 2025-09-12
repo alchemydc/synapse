@@ -2,13 +2,13 @@
 
 ## Actionable Checklist (2025-08-29)
 
-- [ ] Make Slack output prettier and clearer (acceptance: digest is visually distinct, easy to scan, and sections are well-formatted)
+- [X] Make Slack output prettier and clearer (acceptance: digest is visually distinct, easy to scan, and sections are well-formatted)
 - [ ] Implement longer digest window on Mondays to capture weekend activity (acceptance: Monday digests cover Fri–Sun messages, header shows correct date range)
 - [ ] Add support for pulling messages from multiple Discord servers (acceptance: config supports multiple server IDs, digests aggregate across servers)
 - [ ] Flesh out Discourse integration (acceptance: forum messages are ingested, normalized, and summarized in the digest with source attribution)
-- [ ] Explore alternate LLM models for summarization; current "gemini-2.5-flash" returns no output (acceptance: alternate models tested, output validated)
-- [x] Scaffold utility to list available Gemini models and validate model names at runtime (acceptance: npm run models:list prints available model IDs, startup logs show model validation/fallback)
-- [ ] Fix link rendering for Gemini 2.0 output (acceptance: links in LLM output render correctly in Slack for both Markdown and bare URLs; formatter normalizes to Slack mrkdwn; unit tests cover link cases; default model remains gemini-1.5-flash until 2.0 passes)
+- [X] Explore alternate LLM models for summarization; current "gemini-2.5-flash" returns no output (acceptance: alternate models tested, output validated). Fix was using gemini-2.0-flash as there is no 2.5 flash :) 
+- [X] Scaffold utility to list available Gemini models and validate model names at runtime (acceptance: npm run models:list prints available model IDs, startup logs show model validation/fallback)
+- [X] Fix link rendering for Gemini 2.0 output (acceptance: links in LLM output render correctly in Slack for both Markdown and bare URLs; formatter normalizes to Slack mrkdwn; unit tests cover link cases; default model remains gemini-1.5-flash until 2.0 passes)
 
 ## Implementation Roadmap
 
