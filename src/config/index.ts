@@ -62,6 +62,26 @@ const ConfigSchema = z.object({
     toBool,
     z.boolean()
   ).default(true),
+
+  ATTRIBUTION_ENABLED: z.preprocess(
+    toBool,
+    z.boolean()
+  ).default(false),
+
+  TOPIC_GAP_MINUTES: z.preprocess(
+    toNum,
+    z.number().int().min(1)
+  ).default(20),
+
+  MAX_TOPIC_PARTICIPANTS: z.preprocess(
+    toNum,
+    z.number().int().min(1)
+  ).default(6),
+
+  ATTRIBUTION_FALLBACK_ENABLED: z.preprocess(
+    toBool,
+    z.boolean()
+  ).default(true),
 });
 
 export type Config = {
@@ -78,6 +98,10 @@ export type Config = {
   MIN_MESSAGE_LENGTH: number;
   EXCLUDE_COMMANDS: boolean;
   EXCLUDE_LINK_ONLY: boolean;
+  ATTRIBUTION_ENABLED: boolean;
+  TOPIC_GAP_MINUTES: number;
+  MAX_TOPIC_PARTICIPANTS: number;
+  ATTRIBUTION_FALLBACK_ENABLED: boolean;
 };
 
 import { logger } from "../utils/logger";
@@ -107,7 +131,12 @@ export function loadConfig(): Config {
     logLevel: config.LOG_LEVEL,
     minMessageLength: config.MIN_MESSAGE_LENGTH,
     excludeCommands: config.EXCLUDE_COMMANDS,
+
     excludeLinkOnly: config.EXCLUDE_LINK_ONLY,
+    attributionEnabled: config.ATTRIBUTION_ENABLED,
+    topicGapMinutes: config.TOPIC_GAP_MINUTES,
+    maxTopicParticipants: config.MAX_TOPIC_PARTICIPANTS,
+    attributionFallbackEnabled: config.ATTRIBUTION_FALLBACK_ENABLED,
     discordChannelsCount: config.DISCORD_CHANNELS.length,
     secrets: {
       GEMINI_API_KEY: mask(process.env.GEMINI_API_KEY || ""),

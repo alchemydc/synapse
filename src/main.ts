@@ -2,12 +2,14 @@
 import dotenv from "dotenv";
 import { loadConfig, Config } from "./config";
 import { fetchMessages } from "./services/discord";
-import { summarize } from "./services/llm/gemini";
+import { summarize, summarizeAttributed } from "./services/llm/gemini";
 import { postDigestBlocks } from "./services/slack";
 import { formatDigest, buildDigestBlocks } from "./utils/format";
 import { logger } from "./utils/logger";
 import { getUtcDailyWindowFrom } from "./utils/time";
 import { applyMessageFilters } from "./utils/filters";
+import injectMissingParticipants from "./utils/participants_fallback";
+import { clusterMessages, TopicCluster } from "./utils/topics";
 
 dotenv.config();
 const config: Config = loadConfig();
@@ -30,7 +32,22 @@ async function run() {
   logger.info(`Filtered to ${filteredMessages.length} messages.`);
 
   logger.info("Summarizing messages...");
-  const summary = await summarize(filteredMessages, config);
+
+  let summary: string;
+  let clusters: TopicCluster[] = [];
+  if (config.ATTRIBUTION_ENABLED) {
+    logger.info("Attribution enabled — building topic clusters...");
+    clusters = clusterMessages(filteredMessages, config.TOPIC_GAP_MINUTES);
+    logger.info(`Built ${clusters.length} topic clusters for attribution.`);
+    summary = await summarizeAttributed(clusters, config);
+
+    if (config.ATTRIBUTION_FALLBACK_ENABLED) {
+      logger.info("Attribution fallback enabled — injecting missing participant lines if needed...");
+      summary = injectMissingParticipants(summary, clusters, config.MAX_TOPIC_PARTICIPANTS);
+    }
+  } else {
+    summary = await summarize(filteredMessages, config);
+  }
 
   // Block Kit integration
   logger.info("Formatting digest...");

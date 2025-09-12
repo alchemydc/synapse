@@ -41,3 +41,18 @@ The bot supports configurable message filters via environment variables:
 - `EXCLUDE_LINK_ONLY` (default: true): Exclude messages that are only a link.
 
 Set these in your `.env` file to control which Discord messages are summarized. See `.env.example` for details.
+
+## Attribution (per-topic participants)
+
+The bot can optionally include which users participated in each topic that appears in the digest. This is disabled by default.
+
+Environment variables (new):
+- `ATTRIBUTION_ENABLED` (boolean, default: false) — when true, messages are clustered into topic windows and the digest will include a "Participants:" line for each topic.
+- `TOPIC_GAP_MINUTES` (integer, default: 20) — the inactivity gap (in minutes) that separates messages into distinct topic clusters within the same channel.
+- `MAX_TOPIC_PARTICIPANTS` (integer, default: 6) — maximum number of participant names shown per topic; additional participants are shown as `+N`.
+- `ATTRIBUTION_FALLBACK_ENABLED` (boolean, default: true) — when true, the service will attempt a lightweight post-processing pass to inject missing Participants lines if the LLM omits them.
+
+Notes and limitations:
+- Attribution uses a simple time-gap clustering heuristic (no semantic clustering yet). It lists usernames exactly as they appear in the source messages and does not invent or infer participants.
+- Enabling attribution may increase the prompt length and LLM token usage; keep `MAX_SUMMARY_TOKENS` and `MAX_TOPIC_PARTICIPANTS` tuned to control cost.
+- To enable attribution, set `ATTRIBUTION_ENABLED=true` in your `.env` and run the bot as usual. Use `DRY_RUN=true` for testing without posting to Slack.
