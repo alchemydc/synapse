@@ -54,7 +54,7 @@ describe("topics utils", () => {
   });
 
   it("formatParticipantList shows overflow with +N", () => {
-    const list = ["a","b","c","d","e","f","g"];
+    const list = ["a", "b", "c", "d", "e", "f", "g"];
     expect(formatParticipantList(list, 6)).toBe("a, b, c, d, e, f +1");
     expect(formatParticipantList(list.slice(0,3), 6)).toBe("a, b, c");
     expect(formatParticipantList([], 4)).toBe("");

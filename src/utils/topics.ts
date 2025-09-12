@@ -7,6 +7,8 @@
 
 import { MessageDTO } from "../services/discord";
 
+const UNKNOWN_AUTHOR = "unknown";
+
 export interface TopicCluster {
   id: number;
   channelId: string;
@@ -90,7 +92,7 @@ export function extractParticipants(cluster: TopicCluster): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const m of cluster.messages) {
-    const name = m.author || "unknown";
+    const name = m.author || UNKNOWN_AUTHOR;
     if (!seen.has(name)) {
       seen.add(name);
       out.push(name);

@@ -87,7 +87,7 @@ export function injectMissingParticipants(
         if (matches) {
           // Append Participants line to this section
           const partStr = buildCompactParticipantString(cluster.participants, maxPerTopic);
-          sections[i] = sections[i] + "\nParticipants: " + partStr;
+          sections[i] = `${sections[i]}\nParticipants: ${partStr}`;
           sectionsLc[i] = sections[i].toLowerCase();
           changed = true;
           placed = true;
