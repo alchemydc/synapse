@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "lint": "echo \"TODO: add eslint\" && exit 0",
     "discord:debug": "ts-node-dev --transpile-only src/tools/discord_debug.ts",
-    "models:list": "ts-node-dev --transpile-only src/tools/gemini_list_models.ts"
+    "models:list": "ts-node-dev --transpile-only src/tools/gemini_list_models.ts",
+    "discourse:debug": "ts-node-dev --transpile-only src/tools/discourse_debug.ts"
   },
   "keywords": [
     "discord",

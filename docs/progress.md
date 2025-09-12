@@ -19,22 +19,31 @@
 - DRY_RUN path for safe testing.
 - Formatting and configuration strategy.
 - Zod preprocessors for robust default handling.
+- Discourse debug tooling operational: `src/tools/discourse_debug.ts` validates Discourse API access and prints site metadata, sample topics, and rate-limit headers.
+- `.env.example` updated with Discourse placeholders and an npm script `discourse:debug` added to assist local verification.
 
 ## What’s Next
 - Make Slack output prettier and clearer.
 - Implement longer digest window on Mondays to capture weekend activity.
 - Add support for pulling messages from multiple Discord servers.
-- Add support for pulling messages from Discourse forums.
-- Explore alternate LLM models for summarization; current "gemini-2.5-flash" returns no output, suggesting call failure.
+- Flesh out Discourse integration (broken into concrete sub-tasks below).
+- Explore alternate LLM models for summarization; current "gemini-2.5-flash" returns no output (investigate and stabilize).
 - Scaffold utility to list available Gemini models and validate model names at runtime.
-- Add per-topic participant attribution (config-gated): implemented
-  - Config: ATTRIBUTION_ENABLED, TOPIC_GAP_MINUTES, MAX_TOPIC_PARTICIPANTS, ATTRIBUTION_FALLBACK_ENABLED
-  - Behavior: time-gap clustering by channel, participants listed per-topic in digest, conservative fallback injects missing Participants lines when LLM omits them.
-  - Files added/changed: src/utils/topics.ts, src/utils/participants_fallback.ts, src/services/llm/gemini.ts (summarizeAttributed), src/utils/format.ts (participants rendering), src/main.ts (integration), test/unit/topics.test.ts, src/utils/topic_refine.ts (semantic scaffold), README.md (docs).
 - Add unit tests for prompt injection and formatter edge-cases (pending).
 - Add documentation for deployment & memory bank updates (pending confirmation).
 - Explore semantic cluster refinement (topic_refine scaffold added; implementation pending).
 - Consider monitoring LLM prompt stability after attribution enabled (token cost, link rendering).
+
+## Discourse Integration (next-step breakdown)
+- Implement a Discourse ingestion service (src/services/discourse/) to:
+  - fetch recent topics and initial posts within the digest window,
+  - handle pagination and rate limits,
+  - normalize Discourse posts to the internal message model (with source metadata).
+- Normalize Discourse posts to the internal message structure with fields: source, forum, category, topic_id, post_id, author, content, created_at.
+- Integrate normalized Discourse messages into the existing ETL pipeline with existing filters and token-budget controls.
+- Modify Slack formatter and LLM prompt to include source attribution (e.g., prefix or header: [Discord: server-name] / [Discourse: forum-name] per topic).
+- Add config flags (future): ENABLE_SOURCE_TAGS, DISCOURSE_CATEGORY_IDS, DISCOURSE_LOOKBACK_HOURS.
+- Add unit tests for multi-source formatting and prompt context.
 
 ## Known Issues
 - Gemini 2.0 link formatting incorrect; links not rendered properly in summary output.
@@ -51,6 +60,7 @@
 - 2025-08-29: Deployment docs updated to clarify GEMINI_MODEL is a repo variable.
 - 2025-08-29: Plan to validate model names and provide a model listing utility.
 - 2025-08-28: Pivot to Node due to n8n license constraints and flexibility needs.
+- 2025-09-12: Added `discourse_debug` script and .env scaffolding; adopting staged integration approach (debug → ingestion → normalization → attribution → formatter/prompt).
 - Slack Block Kit adopted for digest formatting.
 - Configurable filters (min length, commands, link-only) added.
 - Gemini prompt enriched with channel/timestamp and structured sections.
