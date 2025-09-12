@@ -13,6 +13,8 @@ const format_1 = require("./utils/format");
 const logger_1 = require("./utils/logger");
 const time_1 = require("./utils/time");
 const filters_1 = require("./utils/filters");
+const participants_fallback_1 = __importDefault(require("./utils/participants_fallback"));
+const topics_1 = require("./utils/topics");
 dotenv_1.default.config();
 const config = (0, config_1.loadConfig)();
 logger_1.logger.info("Synapse Digest Bot starting...");
@@ -26,7 +28,21 @@ async function run() {
     const filteredMessages = (0, filters_1.applyMessageFilters)(messages, config);
     logger_1.logger.info(`Filtered to ${filteredMessages.length} messages.`);
     logger_1.logger.info("Summarizing messages...");
-    const summary = await (0, gemini_1.summarize)(filteredMessages, config);
+    let summary;
+    let clusters = [];
+    if (config.ATTRIBUTION_ENABLED) {
+        logger_1.logger.info("Attribution enabled — building topic clusters...");
+        clusters = (0, topics_1.clusterMessages)(filteredMessages, config.TOPIC_GAP_MINUTES);
+        logger_1.logger.info(`Built ${clusters.length} topic clusters for attribution.`);
+        summary = await (0, gemini_1.summarizeAttributed)(clusters, config);
+        if (config.ATTRIBUTION_FALLBACK_ENABLED) {
+            logger_1.logger.info("Attribution fallback enabled — injecting missing participant lines if needed...");
+            summary = (0, participants_fallback_1.default)(summary, clusters, config.MAX_TOPIC_PARTICIPANTS);
+        }
+    }
+    else {
+        summary = await (0, gemini_1.summarize)(filteredMessages, config);
+    }
     // Block Kit integration
     logger_1.logger.info("Formatting digest...");
     const lookbackMs = config.DIGEST_WINDOW_HOURS * 60 * 60 * 1000;

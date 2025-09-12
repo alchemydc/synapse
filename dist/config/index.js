@@ -44,6 +44,10 @@ const ConfigSchema = zod_1.z.object({
     MIN_MESSAGE_LENGTH: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).default(20),
     EXCLUDE_COMMANDS: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
     EXCLUDE_LINK_ONLY: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
+    ATTRIBUTION_ENABLED: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(false),
+    TOPIC_GAP_MINUTES: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).default(20),
+    MAX_TOPIC_PARTICIPANTS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).default(6),
+    ATTRIBUTION_FALLBACK_ENABLED: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
 });
 const logger_1 = require("../utils/logger");
 function loadConfig() {
@@ -71,6 +75,10 @@ function loadConfig() {
         minMessageLength: config.MIN_MESSAGE_LENGTH,
         excludeCommands: config.EXCLUDE_COMMANDS,
         excludeLinkOnly: config.EXCLUDE_LINK_ONLY,
+        attributionEnabled: config.ATTRIBUTION_ENABLED,
+        topicGapMinutes: config.TOPIC_GAP_MINUTES,
+        maxTopicParticipants: config.MAX_TOPIC_PARTICIPANTS,
+        attributionFallbackEnabled: config.ATTRIBUTION_FALLBACK_ENABLED,
         discordChannelsCount: config.DISCORD_CHANNELS.length,
         secrets: {
             GEMINI_API_KEY: mask(process.env.GEMINI_API_KEY || ""),
