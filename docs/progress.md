@@ -27,6 +27,14 @@
 - Add support for pulling messages from Discourse forums.
 - Explore alternate LLM models for summarization; current "gemini-2.5-flash" returns no output, suggesting call failure.
 - Scaffold utility to list available Gemini models and validate model names at runtime.
+- Add per-topic participant attribution (config-gated): implemented
+  - Config: ATTRIBUTION_ENABLED, TOPIC_GAP_MINUTES, MAX_TOPIC_PARTICIPANTS, ATTRIBUTION_FALLBACK_ENABLED
+  - Behavior: time-gap clustering by channel, participants listed per-topic in digest, conservative fallback injects missing Participants lines when LLM omits them.
+  - Files added/changed: src/utils/topics.ts, src/utils/participants_fallback.ts, src/services/llm/gemini.ts (summarizeAttributed), src/utils/format.ts (participants rendering), src/main.ts (integration), test/unit/topics.test.ts, src/utils/topic_refine.ts (semantic scaffold), README.md (docs).
+- Add unit tests for prompt injection and formatter edge-cases (pending).
+- Add documentation for deployment & memory bank updates (pending confirmation).
+- Explore semantic cluster refinement (topic_refine scaffold added; implementation pending).
+- Consider monitoring LLM prompt stability after attribution enabled (token cost, link rendering).
 
 ## Known Issues
 - Gemini 2.0 link formatting incorrect; links not rendered properly in summary output.

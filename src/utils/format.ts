@@ -64,12 +64,53 @@ export function buildDigestBlocks(params: {
   const cleaned = stripLeadingDigestTitle(params.summary);
   const mrkdwn = normalizeToSlackMrkdwn(cleaned);
   const range = `Time window: ${params.dateTitle} 00:00–${params.end.toISOString().slice(0,10)} 00:00 UTC`;
-  return [
+
+  const blocks: any[] = [
     { type: "header", text: { type: "plain_text", text: `Community Digest — ${params.dateTitle} (UTC)` } },
     { type: "context", elements: [{ type: "mrkdwn", text: range }] },
     { type: "divider" },
-    { type: "section", text: { type: "mrkdwn", text: `*Summary*\n${truncateSection(mrkdwn)}` } }
   ];
+
+  // If the digest doesn't include explicit sectioning, preserve legacy behavior:
+  // single Summary section with the full content under "*Summary*"
+  if (!/^\s*\*?Summary\*?/im.test(mrkdwn)) {
+    blocks.push({ type: "section", text: { type: "mrkdwn", text: `*Summary*\n${truncateSection(mrkdwn)}` } });
+    return blocks;
+  }
+
+  // Split digest into logical sections by two-or-more newlines.
+  // Each section may end with a "Participants: ..." line which we render as a separate context block.
+  const sections = mrkdwn.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
+
+  for (const sec of sections) {
+    // Try to extract a trailing Participants line
+    const lines = sec.split("\n").map(l => l.trim()).filter(Boolean);
+    let participantsLine: string | null = null;
+    // check last line for a Participants: prefix (case-insensitive)
+    const last = lines[lines.length - 1] || "";
+    const match = last.match(/^\s*Participants:\s*(.+)$/i);
+    if (match) {
+      participantsLine = match[1].trim();
+      // remove the last line from the section text
+      lines.pop();
+    }
+
+    const sectionText = truncateSection(lines.join("\n\n"));
+
+    if (sectionText) {
+      blocks.push({ type: "section", text: { type: "mrkdwn", text: sectionText } });
+    }
+
+    if (participantsLine) {
+      // render participants in a smaller context block
+      blocks.push({
+        type: "context",
+        elements: [{ type: "mrkdwn", text: `*Participants:* ${participantsLine}` }],
+      });
+    }
+  }
+
+  return blocks;
 }
 
 // Legacy fallback
