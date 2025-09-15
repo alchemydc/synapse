@@ -2,6 +2,7 @@
 
 ## Actionable Checklist (2025-08-29)
 
+- [ ] Evaluate bug that is making the slack markdown (mrkdown) formatting inconsistent.  Digest from 9/13 had good formatting, 9/14 had broken formatting. No code or config changes during that period, so seems like some type of indeterminism.
 - [X] Make Slack output prettier and clearer (acceptance: digest is visually distinct, easy to scan, and sections are well-formatted)
 - [ ] Implement longer digest window on Mondays to capture weekend activity (acceptance: Monday digests cover Fri–Sun messages, header shows correct date range)
 - [ ] Add support for pulling messages from multiple Discord servers (acceptance: config supports multiple server IDs, digests aggregate across servers)
