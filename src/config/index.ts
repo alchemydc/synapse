@@ -82,6 +82,21 @@ const ConfigSchema = z.object({
     toBool,
     z.boolean()
   ).default(true),
+
+  // Discourse-related optional settings
+  DISCOURSE_BASE_URL: z.preprocess(toStr, z.string()).optional(),
+  DISCOURSE_API_KEY: z.preprocess(toStr, z.string()).optional(),
+  DISCOURSE_API_USERNAME: z.preprocess(toStr, z.string()).optional(),
+
+  DISCOURSE_LOOKBACK_HOURS: z.preprocess(
+    toNum,
+    z.number().int().min(1)
+  ).optional(),
+
+  DISCOURSE_MAX_TOPICS: z.preprocess(
+    toNum,
+    z.number().int().min(1)
+  ).optional(),
 });
 
 export type Config = {
@@ -102,9 +117,24 @@ export type Config = {
   TOPIC_GAP_MINUTES: number;
   MAX_TOPIC_PARTICIPANTS: number;
   ATTRIBUTION_FALLBACK_ENABLED: boolean;
+
+  // Discourse
+  DISCOURSE_BASE_URL?: string;
+  DISCOURSE_API_KEY?: string;
+  DISCOURSE_API_USERNAME?: string;
+  DISCOURSE_LOOKBACK_HOURS?: number;
+  DISCOURSE_MAX_TOPICS?: number;
+
+  // derived
+  DISCOURSE_ENABLED: boolean;
 };
 
 import { logger } from "../utils/logger";
+
+function normalizeBaseUrl(raw?: string) {
+  if (!raw) return undefined;
+  return raw.replace(/\/+$/, "");
+}
 
 export function loadConfig(): Config {
   const parsed = ConfigSchema.safeParse(process.env);
@@ -112,13 +142,24 @@ export function loadConfig(): Config {
     throw new Error("Invalid config: " + JSON.stringify(parsed.error.format()));
   }
   const raw = parsed.data;
+  const configBaseChannels = raw.DISCORD_CHANNELS.split(",").map((id: string) => id.trim()).filter(Boolean);
+
+  const discoBase = normalizeBaseUrl(raw.DISCOURSE_BASE_URL);
+
   const config: Config = {
     ...raw,
-    DISCORD_CHANNELS: raw.DISCORD_CHANNELS.split(",").map((id: string) => id.trim()).filter(Boolean),
+    DISCORD_CHANNELS: configBaseChannels,
+    DISCOURSE_BASE_URL: discoBase,
+    DISCOURSE_API_KEY: raw.DISCOURSE_API_KEY,
+    DISCOURSE_API_USERNAME: raw.DISCOURSE_API_USERNAME,
+    DISCOURSE_LOOKBACK_HOURS: raw.DISCOURSE_LOOKBACK_HOURS,
+    DISCOURSE_MAX_TOPICS: raw.DISCOURSE_MAX_TOPICS,
+    DISCOURSE_ENABLED:
+      Boolean(discoBase && raw.DISCOURSE_API_KEY && raw.DISCOURSE_API_USERNAME),
   };
 
   // Mask secrets for logging
-  function mask(s: string) {
+  function mask(s: string | undefined) {
     if (!s) return { present: false, len: 0 };
     return { present: true, len: s.length };
   }
@@ -131,17 +172,23 @@ export function loadConfig(): Config {
     logLevel: config.LOG_LEVEL,
     minMessageLength: config.MIN_MESSAGE_LENGTH,
     excludeCommands: config.EXCLUDE_COMMANDS,
-
     excludeLinkOnly: config.EXCLUDE_LINK_ONLY,
     attributionEnabled: config.ATTRIBUTION_ENABLED,
     topicGapMinutes: config.TOPIC_GAP_MINUTES,
     maxTopicParticipants: config.MAX_TOPIC_PARTICIPANTS,
     attributionFallbackEnabled: config.ATTRIBUTION_FALLBACK_ENABLED,
     discordChannelsCount: config.DISCORD_CHANNELS.length,
+    discourse: {
+      enabled: config.DISCOURSE_ENABLED,
+      baseUrl: config.DISCOURSE_BASE_URL ? new URL(config.DISCOURSE_BASE_URL).hostname : undefined,
+      maxTopics: config.DISCOURSE_MAX_TOPICS ?? null,
+      lookbackHours: config.DISCOURSE_LOOKBACK_HOURS ?? null,
+    },
     secrets: {
       GEMINI_API_KEY: mask(process.env.GEMINI_API_KEY || ""),
       SLACK_BOT_TOKEN: mask(process.env.SLACK_BOT_TOKEN || ""),
       DISCORD_TOKEN: mask(process.env.DISCORD_TOKEN || ""),
+      DISCOURSE_API_KEY: mask(process.env.DISCOURSE_API_KEY || ""),
     },
   });
 

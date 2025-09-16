@@ -29,13 +29,15 @@
 
 ### Discourse Integration: Concrete Tasks
 
-- [ ] Implement discourse debug script (done: `src/tools/discourse_debug.ts`)
-- [ ] Implement discourse ingestion service (src/services/discourse/) to fetch recent topics and initial posts within the digest window, handling pagination and rate limits.
-- [ ] Normalize Discourse posts to the internal message structure with fields: source, forum, category, topic_id, post_id, author, content, created_at.
-- [ ] Integrate normalized Discourse messages into the existing ETL pipeline with existing filters and token-budget controls.
+- [x] Implement discourse debug script (done: `src/tools/discourse_debug.ts`)
+- [x] Implement discourse ingestion service (src/services/discourse/) to fetch recent topics and initial posts within the digest window, handling pagination and rate limits.
+- [x] Normalize Discourse posts to the internal message structure with fields: source, forum, category, topic_id, post_id, author, content, created_at.
+- [x] Integrate normalized Discourse messages into the existing ETL pipeline with existing filters and token-budget controls.
 - [ ] Modify Slack formatter and LLM prompt to include source attribution (e.g., prefix or header: [Discord: server-name] / [Discourse: forum-name] per topic).
 - [ ] Add config flags (future): ENABLE_SOURCE_TAGS, DISCOURSE_CATEGORY_IDS, DISCOURSE_LOOKBACK_HOURS.
 - [ ] Add unit tests for multi-source formatting and prompt context.
+
+Note: Discourse ingestion is operational when DISCOURSE_LOOKBACK_HOURS is set to 72. The digest currently does not clearly indicate source attribution (Discord vs Forum); next step is to update the Slack formatter and LLM prompt to include explicit source tags per topic/message.
 
 ---
 
