@@ -93,6 +93,23 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
   const lookHours = lookbackHours ?? windowHours;
   const since = now - lookHours * 60 * 60 * 1000;
 
+  // Optional verbose debug for Discourse fetch internals
+  const discoDebug = (process.env.DISCOURSE_DEBUG_VERBOSE || "").toLowerCase();
+  const DISCOURSE_DEBUG_VERBOSE = ["true", "1", "yes"].includes(discoDebug);
+  const debugCounters = {
+    topicsExamined: 0,
+    topicsSkippedOld: 0,
+    postsExamined: 0,
+    postsKept: 0,
+    postsSkippedOld: 0,
+    postsSkippedDeleted: 0,
+    postsSkippedEmpty: 0,
+    postsSkippedInvalidDate: 0,
+  };
+  if (DISCOURSE_DEBUG_VERBOSE) {
+    console.info(`Discourse fetch: since=${new Date(since).toISOString()} now=${new Date(now).toISOString()} lookHours=${lookHours}`);
+  }
+
   const messages: NormalizedMessage[] = [];
   let page = 0;
   let fetchedTopics = 0;
@@ -100,8 +117,10 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
   const seenTopicIds = new Set<number>();
 
   while (!stopPaging) {
-    page++;
-    const url = `${discoBase}/latest.json?page=${page}`;
+    const url = page === 0 ? `${discoBase}/latest.json` : `${discoBase}/latest.json?page=${page}`;
+    if (DISCOURSE_DEBUG_VERBOSE) {
+      console.info(`Fetching topics page ${page} url=${url}`);
+    }
 
     let latestResp;
     try {
@@ -132,10 +151,19 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
     if (!Array.isArray(topics) || topics.length === 0) break;
 
     for (const t of topics) {
+      // count examined topics
+      if (DISCOURSE_DEBUG_VERBOSE) debugCounters.topicsExamined++;
       // Fields vary; try common ones
       const lastPosted = t.last_posted_at || t.created_at || t.last_posted_at;
       const lastTs = lastPosted ? Date.parse(lastPosted) : 0;
+      if (DISCOURSE_DEBUG_VERBOSE) {
+        console.info(`Topic candidate: id=${t.id}, lastPosted=${lastPosted}, lastTs=${isNaN(lastTs) ? "invalid" : new Date(lastTs).toISOString()}`);
+      }
       if (lastTs < since) {
+        if (DISCOURSE_DEBUG_VERBOSE) {
+          debugCounters.topicsSkippedOld++;
+          console.info(`Stopping pagination: topic ${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()} < since ${new Date(since).toISOString()}`);
+        }
         stopPaging = true;
         break;
       }
@@ -187,17 +215,53 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
 
       for (const p of posts) {
         try {
+          if (DISCOURSE_DEBUG_VERBOSE) debugCounters.postsExamined++;
+
           // skip deleted/hidden posts
-          if (p?.deleted_at) continue;
+          if (p?.deleted_at) {
+            if (DISCOURSE_DEBUG_VERBOSE) {
+              debugCounters.postsSkippedDeleted++;
+              console.info(`Skipping deleted post in topic ${topicId}, postId=${p?.id}`);
+            }
+            continue;
+          }
+
           const createdAt = p.created_at || p.posted_at || p.created || null;
-          if (!createdAt) continue;
+          if (!createdAt) {
+            if (DISCOURSE_DEBUG_VERBOSE) {
+              debugCounters.postsSkippedInvalidDate++;
+              console.info(`Skipping post with missing createdAt in topic ${topicId}, postId=${p?.id}`);
+            }
+            continue;
+          }
+
           const createdTs = Date.parse(createdAt);
-          if (isNaN(createdTs)) continue;
-          if (createdTs < since) continue;
+          if (isNaN(createdTs)) {
+            if (DISCOURSE_DEBUG_VERBOSE) {
+              debugCounters.postsSkippedInvalidDate++;
+              console.info(`Skipping post with invalid date '${createdAt}' in topic ${topicId}, postId=${p?.id}`);
+            }
+            continue;
+          }
+
+          if (createdTs < since) {
+            if (DISCOURSE_DEBUG_VERBOSE) {
+              debugCounters.postsSkippedOld++;
+              console.info(`Skipping old post in topic ${topicId}, postId=${p?.id}, createdAt=${createdAt}`);
+            }
+            continue;
+          }
 
           const content = p.raw ? String(p.raw) : stripHtml(String(p.cooked || ""));
+          if (!content || String(content).trim() === "") {
+            if (DISCOURSE_DEBUG_VERBOSE) {
+              debugCounters.postsSkippedEmpty++;
+              console.info(`Skipping empty content post in topic ${topicId}, postId=${p?.id}`);
+            }
+            continue;
+          }
 
-          if (!content || String(content).trim() === "") continue;
+          if (DISCOURSE_DEBUG_VERBOSE) debugCounters.postsKept++;
 
           const author = (p.username || p.name || p.user_name || (p.user && p.user.username) || "unknown") as string;
           const postId = p.id ?? p.post_id ?? undefined;
@@ -227,6 +291,14 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
 
     // Safety: if topics list indicates no further pages, stop
     if (!Array.isArray(topics) || topics.length === 0) break;
+
+    // advance to next page (we fetch page=0 first)
+    page++;
+  }
+
+  // If verbose debug, log counters
+  if (typeof DISCOURSE_DEBUG_VERBOSE !== "undefined" && DISCOURSE_DEBUG_VERBOSE) {
+    console.info("Discourse fetch debug counters:", debugCounters);
   }
 
   // sort ascending by createdAt
