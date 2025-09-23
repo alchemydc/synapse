@@ -17,6 +17,7 @@ const time_1 = require("./utils/time");
 const filters_1 = require("./utils/filters");
 const participants_fallback_1 = __importDefault(require("./utils/participants_fallback"));
 const topics_1 = require("./utils/topics");
+const source_labels_1 = require("./utils/source_labels");
 dotenv_1.default.config();
 const config = (0, config_1.loadConfig)();
 logger_1.logger.info("Synapse Digest Bot starting...");
@@ -62,14 +63,24 @@ async function run() {
         logger_1.logger.info("Discourse disabled (incomplete credentials).");
     }
     // Reuse existing filters by mapping NormalizedMessage -> Discord-like MessageDTO shape
-    const candidateMessages = normalizedAll.map((m) => ({
-        id: m.id,
-        channelId: m.channelId || "",
-        author: m.author,
-        content: m.content,
-        createdAt: m.createdAt,
-        url: m.url,
-    }));
+    // Also inject a stable source label into channelId so clusters and prompts retain source info.
+    const candidateMessages = normalizedAll.map((m) => {
+        const sourceLabel = (0, source_labels_1.formatSourceLabel)({
+            source: m.source,
+            channelId: m.channelId,
+            forum: m.forum,
+            categoryId: m.categoryId,
+        });
+        return {
+            id: m.id,
+            // Preface channelId with the bracketed source label so downstream clustering and prompts include it.
+            channelId: `${sourceLabel} ${m.channelId || ""}`.trim(),
+            author: m.author,
+            content: m.content,
+            createdAt: m.createdAt,
+            url: m.url,
+        };
+    });
     logger_1.logger.info("Applying filters...");
     const filteredMessages = (0, filters_1.applyMessageFilters)(candidateMessages, config);
     logger_1.logger.info(`Filtered to ${filteredMessages.length} messages.`);

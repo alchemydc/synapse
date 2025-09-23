@@ -5,6 +5,7 @@ import pRetry from "p-retry";
 export interface MessageDTO {
   id: string;
   channelId: string;
+  channelName?: string;
   author: string;
   content: string;
   createdAt: string;
@@ -53,6 +54,7 @@ export async function fetchMessages(
         allMessages.push({
           id: msg.id,
           channelId,
+          channelName: (channel as TextChannel).name,
           author: msg.author.username,
           content: msg.content,
           createdAt: new Date(msg.createdTimestamp).toISOString(),

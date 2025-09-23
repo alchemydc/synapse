@@ -6,9 +6,11 @@ export interface NormalizedMessage {
   id: string;
   source: "discord" | "discourse";
   channelId?: string;
+  channelName?: string;
   topicId?: number;
   postId?: number;
   categoryId?: number;
+  categoryName?: string;
   forum?: string;
   author: string;
   content: string;
@@ -99,6 +101,7 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
   const debugCounters = {
     topicsExamined: 0,
     topicsSkippedOld: 0,
+    topicsSkippedOldPinned: 0,
     postsExamined: 0,
     postsKept: 0,
     postsSkippedOld: 0,
@@ -110,10 +113,32 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
     console.info(`Discourse fetch: since=${new Date(since).toISOString()} now=${new Date(now).toISOString()} lookHours=${lookHours}`);
   }
 
+  // Try to load category names to improve source labels / readability
+  let categoryMap: Record<number, string> = {};
+  try {
+    const categoriesResp = await fetchJSON(`${discoBase}/categories.json`, headers).catch(() => null);
+    const cats = categoriesResp?.json?.category_list?.categories || categoriesResp?.json?.categories || [];
+    if (Array.isArray(cats)) {
+      for (const c of cats) {
+        if (c && typeof c.id !== "undefined" && typeof c.name === "string") {
+          categoryMap[Number(c.id)] = c.name;
+        }
+      }
+    }
+    if (DISCOURSE_DEBUG_VERBOSE) {
+      console.info(`Loaded ${Object.keys(categoryMap).length} categories from ${discoBase}/categories.json`);
+    }
+  } catch (err: any) {
+    if (DISCOURSE_DEBUG_VERBOSE) {
+      console.warn(`Failed to fetch categories.json: ${err?.message || err}`);
+    }
+  }
+
   const messages: NormalizedMessage[] = [];
   let page = 0;
   let fetchedTopics = 0;
   let stopPaging = false;
+  let reachedOldCutoff = false;
   const seenTopicIds = new Set<number>();
 
   while (!stopPaging) {
@@ -159,13 +184,24 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
       if (DISCOURSE_DEBUG_VERBOSE) {
         console.info(`Topic candidate: id=${t.id}, lastPosted=${lastPosted}, lastTs=${isNaN(lastTs) ? "invalid" : new Date(lastTs).toISOString()}`);
       }
+      const isPinned = !!(t.pinned || t.pinned_globally || t.pinned_until);
       if (lastTs < since) {
+        if (isPinned) {
+          if (DISCOURSE_DEBUG_VERBOSE) {
+            debugCounters.topicsSkippedOldPinned++;
+            console.info(`Skipping pinned old topic: id=${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()}`);
+          }
+          // skip pinned old topics but continue scanning the rest of this page
+          continue;
+        }
+
+        // Non-pinned old topic: mark cutoff for stopping after this page
         if (DISCOURSE_DEBUG_VERBOSE) {
           debugCounters.topicsSkippedOld++;
-          console.info(`Stopping pagination: topic ${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()} < since ${new Date(since).toISOString()}`);
+          console.info(`Marking old cutoff at topic ${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()} < since ${new Date(since).toISOString()}`);
         }
-        stopPaging = true;
-        break;
+        reachedOldCutoff = true;
+        continue;
       }
 
       fetchedTopics++;
@@ -273,6 +309,7 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
             topicId: Number(topicId),
             postId: postId ? Number(postId) : undefined,
             categoryId: categoryId ? Number(categoryId) : undefined,
+            categoryName: categoryId ? categoryMap[Number(categoryId)] : undefined,
             forum,
             author,
             content: String(content).trim(),
@@ -287,6 +324,12 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
           continue;
         }
       }
+    }
+
+    // If we encountered an old non-pinned topic, stop after finishing current page
+    if (reachedOldCutoff) {
+      if (DISCOURSE_DEBUG_VERBOSE) console.info("Reached old cutoff on this page; will stop paging after this page.");
+      stopPaging = true;
     }
 
     // Safety: if topics list indicates no further pages, stop

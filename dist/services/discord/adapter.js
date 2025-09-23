@@ -9,6 +9,7 @@ function mapDiscordToNormalized(msgs) {
         id: `discord-${m.id}`,
         source: "discord",
         channelId: m.channelId,
+        channelName: m.channelName,
         author: m.author,
         content: m.content,
         createdAt: m.createdAt,

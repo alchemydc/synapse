@@ -68,14 +68,55 @@ async function fetchDiscourseMessages(opts) {
     const now = Date.now();
     const lookHours = lookbackHours ?? windowHours;
     const since = now - lookHours * 60 * 60 * 1000;
+    // Optional verbose debug for Discourse fetch internals
+    const discoDebug = (process.env.DISCOURSE_DEBUG_VERBOSE || "").toLowerCase();
+    const DISCOURSE_DEBUG_VERBOSE = ["true", "1", "yes"].includes(discoDebug);
+    const debugCounters = {
+        topicsExamined: 0,
+        topicsSkippedOld: 0,
+        topicsSkippedOldPinned: 0,
+        postsExamined: 0,
+        postsKept: 0,
+        postsSkippedOld: 0,
+        postsSkippedDeleted: 0,
+        postsSkippedEmpty: 0,
+        postsSkippedInvalidDate: 0,
+    };
+    if (DISCOURSE_DEBUG_VERBOSE) {
+        console.info(`Discourse fetch: since=${new Date(since).toISOString()} now=${new Date(now).toISOString()} lookHours=${lookHours}`);
+    }
+    // Try to load category names to improve source labels / readability
+    let categoryMap = {};
+    try {
+        const categoriesResp = await fetchJSON(`${discoBase}/categories.json`, headers).catch(() => null);
+        const cats = categoriesResp?.json?.category_list?.categories || categoriesResp?.json?.categories || [];
+        if (Array.isArray(cats)) {
+            for (const c of cats) {
+                if (c && typeof c.id !== "undefined" && typeof c.name === "string") {
+                    categoryMap[Number(c.id)] = c.name;
+                }
+            }
+        }
+        if (DISCOURSE_DEBUG_VERBOSE) {
+            console.info(`Loaded ${Object.keys(categoryMap).length} categories from ${discoBase}/categories.json`);
+        }
+    }
+    catch (err) {
+        if (DISCOURSE_DEBUG_VERBOSE) {
+            console.warn(`Failed to fetch categories.json: ${err?.message || err}`);
+        }
+    }
     const messages = [];
     let page = 0;
     let fetchedTopics = 0;
     let stopPaging = false;
+    let reachedOldCutoff = false;
     const seenTopicIds = new Set();
     while (!stopPaging) {
-        page++;
-        const url = `${discoBase}/latest.json?page=${page}`;
+        const url = page === 0 ? `${discoBase}/latest.json` : `${discoBase}/latest.json?page=${page}`;
+        if (DISCOURSE_DEBUG_VERBOSE) {
+            console.info(`Fetching topics page ${page} url=${url}`);
+        }
         let latestResp;
         try {
             latestResp = await (0, p_retry_1.default)(() => fetchJSON(url, headers), {
@@ -100,12 +141,32 @@ async function fetchDiscourseMessages(opts) {
         if (!Array.isArray(topics) || topics.length === 0)
             break;
         for (const t of topics) {
+            // count examined topics
+            if (DISCOURSE_DEBUG_VERBOSE)
+                debugCounters.topicsExamined++;
             // Fields vary; try common ones
             const lastPosted = t.last_posted_at || t.created_at || t.last_posted_at;
             const lastTs = lastPosted ? Date.parse(lastPosted) : 0;
+            if (DISCOURSE_DEBUG_VERBOSE) {
+                console.info(`Topic candidate: id=${t.id}, lastPosted=${lastPosted}, lastTs=${isNaN(lastTs) ? "invalid" : new Date(lastTs).toISOString()}`);
+            }
+            const isPinned = !!(t.pinned || t.pinned_globally || t.pinned_until);
             if (lastTs < since) {
-                stopPaging = true;
-                break;
+                if (isPinned) {
+                    if (DISCOURSE_DEBUG_VERBOSE) {
+                        debugCounters.topicsSkippedOldPinned++;
+                        console.info(`Skipping pinned old topic: id=${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()}`);
+                    }
+                    // skip pinned old topics but continue scanning the rest of this page
+                    continue;
+                }
+                // Non-pinned old topic: mark cutoff for stopping after this page
+                if (DISCOURSE_DEBUG_VERBOSE) {
+                    debugCounters.topicsSkippedOld++;
+                    console.info(`Marking old cutoff at topic ${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()} < since ${new Date(since).toISOString()}`);
+                }
+                reachedOldCutoff = true;
+                continue;
             }
             fetchedTopics++;
             if (fetchedTopics > maxTopics) {
@@ -148,20 +209,49 @@ async function fetchDiscourseMessages(opts) {
             })();
             for (const p of posts) {
                 try {
+                    if (DISCOURSE_DEBUG_VERBOSE)
+                        debugCounters.postsExamined++;
                     // skip deleted/hidden posts
-                    if (p?.deleted_at)
+                    if (p?.deleted_at) {
+                        if (DISCOURSE_DEBUG_VERBOSE) {
+                            debugCounters.postsSkippedDeleted++;
+                            console.info(`Skipping deleted post in topic ${topicId}, postId=${p?.id}`);
+                        }
                         continue;
+                    }
                     const createdAt = p.created_at || p.posted_at || p.created || null;
-                    if (!createdAt)
+                    if (!createdAt) {
+                        if (DISCOURSE_DEBUG_VERBOSE) {
+                            debugCounters.postsSkippedInvalidDate++;
+                            console.info(`Skipping post with missing createdAt in topic ${topicId}, postId=${p?.id}`);
+                        }
                         continue;
+                    }
                     const createdTs = Date.parse(createdAt);
-                    if (isNaN(createdTs))
+                    if (isNaN(createdTs)) {
+                        if (DISCOURSE_DEBUG_VERBOSE) {
+                            debugCounters.postsSkippedInvalidDate++;
+                            console.info(`Skipping post with invalid date '${createdAt}' in topic ${topicId}, postId=${p?.id}`);
+                        }
                         continue;
-                    if (createdTs < since)
+                    }
+                    if (createdTs < since) {
+                        if (DISCOURSE_DEBUG_VERBOSE) {
+                            debugCounters.postsSkippedOld++;
+                            console.info(`Skipping old post in topic ${topicId}, postId=${p?.id}, createdAt=${createdAt}`);
+                        }
                         continue;
+                    }
                     const content = p.raw ? String(p.raw) : stripHtml(String(p.cooked || ""));
-                    if (!content || String(content).trim() === "")
+                    if (!content || String(content).trim() === "") {
+                        if (DISCOURSE_DEBUG_VERBOSE) {
+                            debugCounters.postsSkippedEmpty++;
+                            console.info(`Skipping empty content post in topic ${topicId}, postId=${p?.id}`);
+                        }
                         continue;
+                    }
+                    if (DISCOURSE_DEBUG_VERBOSE)
+                        debugCounters.postsKept++;
                     const author = (p.username || p.name || p.user_name || (p.user && p.user.username) || "unknown");
                     const postId = p.id ?? p.post_id ?? undefined;
                     const nm = {
@@ -171,6 +261,7 @@ async function fetchDiscourseMessages(opts) {
                         topicId: Number(topicId),
                         postId: postId ? Number(postId) : undefined,
                         categoryId: categoryId ? Number(categoryId) : undefined,
+                        categoryName: categoryId ? categoryMap[Number(categoryId)] : undefined,
                         forum,
                         author,
                         content: String(content).trim(),
@@ -186,9 +277,21 @@ async function fetchDiscourseMessages(opts) {
                 }
             }
         }
+        // If we encountered an old non-pinned topic, stop after finishing current page
+        if (reachedOldCutoff) {
+            if (DISCOURSE_DEBUG_VERBOSE)
+                console.info("Reached old cutoff on this page; will stop paging after this page.");
+            stopPaging = true;
+        }
         // Safety: if topics list indicates no further pages, stop
         if (!Array.isArray(topics) || topics.length === 0)
             break;
+        // advance to next page (we fetch page=0 first)
+        page++;
+    }
+    // If verbose debug, log counters
+    if (typeof DISCOURSE_DEBUG_VERBOSE !== "undefined" && DISCOURSE_DEBUG_VERBOSE) {
+        console.info("Discourse fetch debug counters:", debugCounters);
     }
     // sort ascending by createdAt
     messages.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));

@@ -12,6 +12,7 @@ import { getUtcDailyWindowFrom } from "./utils/time";
 import { applyMessageFilters } from "./utils/filters";
 import injectMissingParticipants from "./utils/participants_fallback";
 import { clusterMessages, TopicCluster } from "./utils/topics";
+import { formatSourceLabel } from "./utils/source_labels";
 
 dotenv.config();
 const config: Config = loadConfig();
@@ -63,14 +64,24 @@ async function run() {
   }
 
   // Reuse existing filters by mapping NormalizedMessage -> Discord-like MessageDTO shape
-  const candidateMessages = normalizedAll.map((m) => ({
-    id: m.id,
-    channelId: m.channelId || "",
-    author: m.author,
-    content: m.content,
-    createdAt: m.createdAt,
-    url: m.url,
-  }));
+  // Also inject a stable source label into channelId so clusters and prompts retain source info.
+  const candidateMessages = normalizedAll.map((m) => {
+    const sourceLabel = formatSourceLabel({
+      source: m.source,
+      channelId: m.channelId,
+      forum: m.forum,
+      categoryId: m.categoryId,
+    });
+    return {
+      id: m.id,
+      // Preface channelId with the bracketed source label so downstream clustering and prompts include it.
+      channelId: `${sourceLabel} ${m.channelId || ""}`.trim(),
+      author: m.author,
+      content: m.content,
+      createdAt: m.createdAt,
+      url: m.url,
+    };
+  });
 
   logger.info("Applying filters...");
   const filteredMessages = applyMessageFilters(candidateMessages, config);

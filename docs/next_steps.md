@@ -39,6 +39,12 @@
 
 Note: Discourse ingestion is operational when DISCOURSE_LOOKBACK_HOURS is set to 72. The digest currently does not clearly indicate source attribution (Discord vs Forum); next step is to update the Slack formatter and LLM prompt to include explicit source tags per topic/message.
 
+Next session (planned)
+- [ ] Resolve Discord channel IDs to human-readable channel names in source labels and prompts.
+- [ ] Resolve Forum/Discourse category IDs to category names where available and use them in source labels.
+- [ ] Add unit tests for name-resolution and ensure the Slack formatter preserves bracketed labels.
+- Notes: Implementation will fetch category mappings from /categories.json for Discourse and use the channel name provided by the Discord API; fall back to IDs when names are unavailable. This work will be implemented in the next session.
+
 ---
 
 ### Post-MVP Feature Suggestion: Weekend Digest Window Extension

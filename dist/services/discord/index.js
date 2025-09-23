@@ -39,6 +39,7 @@ async function fetchMessages(token, channelIds, windowHours) {
                 allMessages.push({
                     id: msg.id,
                     channelId,
+                    channelName: channel.name,
                     author: msg.author.username,
                     content: msg.content,
                     createdAt: new Date(msg.createdTimestamp).toISOString(),
