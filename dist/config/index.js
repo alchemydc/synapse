@@ -48,6 +48,9 @@ const ConfigSchema = zod_1.z.object({
     TOPIC_GAP_MINUTES: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).default(20),
     MAX_TOPIC_PARTICIPANTS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).default(6),
     ATTRIBUTION_FALLBACK_ENABLED: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
+    // Per-source enable flags
+    ENABLE_DISCORD: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
+    ENABLE_DISCOURSE: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
     // Discourse-related optional settings
     DISCOURSE_BASE_URL: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
     DISCOURSE_API_KEY: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
@@ -72,12 +75,16 @@ function loadConfig() {
     const config = {
         ...raw,
         DISCORD_CHANNELS: configBaseChannels,
+        ENABLE_DISCORD: raw.ENABLE_DISCORD,
+        ENABLE_DISCOURSE: raw.ENABLE_DISCOURSE,
         DISCOURSE_BASE_URL: discoBase,
         DISCOURSE_API_KEY: raw.DISCOURSE_API_KEY,
         DISCOURSE_API_USERNAME: raw.DISCOURSE_API_USERNAME,
         DISCOURSE_LOOKBACK_HOURS: raw.DISCOURSE_LOOKBACK_HOURS,
         DISCOURSE_MAX_TOPICS: raw.DISCOURSE_MAX_TOPICS,
-        DISCOURSE_ENABLED: Boolean(discoBase && raw.DISCOURSE_API_KEY && raw.DISCOURSE_API_USERNAME),
+        // derived enablement
+        DISCORD_ENABLED: Boolean(raw.ENABLE_DISCORD && raw.DISCORD_TOKEN && raw.DISCORD_CHANNELS),
+        DISCOURSE_ENABLED: Boolean(raw.ENABLE_DISCOURSE && discoBase && raw.DISCOURSE_API_KEY && raw.DISCOURSE_API_USERNAME),
     };
     // Mask secrets for logging
     function mask(s) {
@@ -98,7 +105,14 @@ function loadConfig() {
         topicGapMinutes: config.TOPIC_GAP_MINUTES,
         maxTopicParticipants: config.MAX_TOPIC_PARTICIPANTS,
         attributionFallbackEnabled: config.ATTRIBUTION_FALLBACK_ENABLED,
-        discordChannelsCount: config.DISCORD_CHANNELS.length,
+        enableFlags: {
+            enableDiscord: raw.ENABLE_DISCORD,
+            enableDiscourse: raw.ENABLE_DISCOURSE,
+        },
+        discord: {
+            enabled: config.DISCORD_ENABLED,
+            channelsCount: config.DISCORD_CHANNELS.length,
+        },
         discourse: {
             enabled: config.DISCOURSE_ENABLED,
             baseUrl: config.DISCOURSE_BASE_URL ? new URL(config.DISCOURSE_BASE_URL).hostname : undefined,

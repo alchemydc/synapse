@@ -23,14 +23,24 @@ logger_1.logger.info("Synapse Digest Bot starting...");
 logger_1.logger.info(`Channels: ${config.DISCORD_CHANNELS.join(", ")}`);
 logger_1.logger.info(`Window: ${config.DIGEST_WINDOW_HOURS} hours`);
 async function run() {
-    logger_1.logger.info("Fetching messages from Discord...");
-    const discordRaw = await (0, discord_1.fetchMessages)(config.DISCORD_TOKEN, config.DISCORD_CHANNELS, config.DIGEST_WINDOW_HOURS);
-    logger_1.logger.info(`Fetched ${discordRaw.length} messages from Discord.`);
-    // normalize Discord messages
-    const normalizedDiscord = (0, adapter_1.mapDiscordToNormalized)(discordRaw);
-    // optionally fetch Discourse messages
-    let normalizedAll = [...normalizedDiscord];
-    if (config.DISCOURSE_ENABLED) {
+    // Gather normalized messages from enabled sources
+    let normalizedAll = [];
+    if (config.DISCORD_ENABLED) {
+        logger_1.logger.info("Fetching messages from Discord...");
+        const discordRaw = await (0, discord_1.fetchMessages)(config.DISCORD_TOKEN, config.DISCORD_CHANNELS, config.DIGEST_WINDOW_HOURS);
+        logger_1.logger.info(`Fetched ${discordRaw.length} messages from Discord.`);
+        // normalize Discord messages
+        const normalizedDiscord = (0, adapter_1.mapDiscordToNormalized)(discordRaw);
+        normalizedAll.push(...normalizedDiscord);
+    }
+    else {
+        logger_1.logger.info("Discord disabled by config.");
+    }
+    // Discourse: honor explicit enable flag vs incomplete credentials
+    if (config.ENABLE_DISCOURSE === false) {
+        logger_1.logger.info("Discourse disabled by flag.");
+    }
+    else if (config.DISCOURSE_ENABLED) {
         logger_1.logger.info("Discourse config detected — fetching messages from Discourse...");
         try {
             const discourseMsgs = await (0, discourse_1.fetchDiscourseMessages)({
@@ -45,11 +55,11 @@ async function run() {
             normalizedAll.push(...discourseMsgs);
         }
         catch (err) {
-            logger_1.logger.warn("Discourse fetch failed; continuing with Discord-only messages.", { error: err?.message || err });
+            logger_1.logger.warn("Discourse fetch failed; continuing with available messages.", { error: err?.message || err });
         }
     }
     else {
-        logger_1.logger.info("Discourse disabled (env incomplete).");
+        logger_1.logger.info("Discourse disabled (incomplete credentials).");
     }
     // Reuse existing filters by mapping NormalizedMessage -> Discord-like MessageDTO shape
     const candidateMessages = normalizedAll.map((m) => ({

@@ -21,20 +21,28 @@ logger.info(`Channels: ${config.DISCORD_CHANNELS.join(", ")}`);
 logger.info(`Window: ${config.DIGEST_WINDOW_HOURS} hours`);
 
 async function run() {
-  logger.info("Fetching messages from Discord...");
-  const discordRaw = await fetchMessages(
-    config.DISCORD_TOKEN,
-    config.DISCORD_CHANNELS,
-    config.DIGEST_WINDOW_HOURS
-  );
-  logger.info(`Fetched ${discordRaw.length} messages from Discord.`);
+  // Gather normalized messages from enabled sources
+  let normalizedAll: any[] = [];
 
-  // normalize Discord messages
-  const normalizedDiscord = mapDiscordToNormalized(discordRaw);
+  if (config.DISCORD_ENABLED) {
+    logger.info("Fetching messages from Discord...");
+    const discordRaw = await fetchMessages(
+      config.DISCORD_TOKEN,
+      config.DISCORD_CHANNELS,
+      config.DIGEST_WINDOW_HOURS
+    );
+    logger.info(`Fetched ${discordRaw.length} messages from Discord.`);
+    // normalize Discord messages
+    const normalizedDiscord = mapDiscordToNormalized(discordRaw);
+    normalizedAll.push(...normalizedDiscord);
+  } else {
+    logger.info("Discord disabled by config.");
+  }
 
-  // optionally fetch Discourse messages
-  let normalizedAll = [...normalizedDiscord];
-  if (config.DISCOURSE_ENABLED) {
+  // Discourse: honor explicit enable flag vs incomplete credentials
+  if (config.ENABLE_DISCOURSE === false) {
+    logger.info("Discourse disabled by flag.");
+  } else if (config.DISCOURSE_ENABLED) {
     logger.info("Discourse config detected — fetching messages from Discourse...");
     try {
       const discourseMsgs = await fetchDiscourseMessages({
@@ -48,10 +56,10 @@ async function run() {
       logger.info(`Fetched ${discourseMsgs.length} messages from Discourse.`);
       normalizedAll.push(...discourseMsgs);
     } catch (err: any) {
-      logger.warn("Discourse fetch failed; continuing with Discord-only messages.", { error: err?.message || err });
+      logger.warn("Discourse fetch failed; continuing with available messages.", { error: err?.message || err });
     }
   } else {
-    logger.info("Discourse disabled (env incomplete).");
+    logger.info("Discourse disabled (incomplete credentials).");
   }
 
   // Reuse existing filters by mapping NormalizedMessage -> Discord-like MessageDTO shape
