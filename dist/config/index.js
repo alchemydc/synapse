@@ -48,17 +48,36 @@ const ConfigSchema = zod_1.z.object({
     TOPIC_GAP_MINUTES: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).default(20),
     MAX_TOPIC_PARTICIPANTS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).default(6),
     ATTRIBUTION_FALLBACK_ENABLED: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
+    // Discourse-related optional settings
+    DISCOURSE_BASE_URL: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
+    DISCOURSE_API_KEY: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
+    DISCOURSE_API_USERNAME: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
+    DISCOURSE_LOOKBACK_HOURS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).optional(),
+    DISCOURSE_MAX_TOPICS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).optional(),
 });
 const logger_1 = require("../utils/logger");
+function normalizeBaseUrl(raw) {
+    if (!raw)
+        return undefined;
+    return raw.replace(/\/+$/, "");
+}
 function loadConfig() {
     const parsed = ConfigSchema.safeParse(process.env);
     if (!parsed.success) {
         throw new Error("Invalid config: " + JSON.stringify(parsed.error.format()));
     }
     const raw = parsed.data;
+    const configBaseChannels = raw.DISCORD_CHANNELS.split(",").map((id) => id.trim()).filter(Boolean);
+    const discoBase = normalizeBaseUrl(raw.DISCOURSE_BASE_URL);
     const config = {
         ...raw,
-        DISCORD_CHANNELS: raw.DISCORD_CHANNELS.split(",").map((id) => id.trim()).filter(Boolean),
+        DISCORD_CHANNELS: configBaseChannels,
+        DISCOURSE_BASE_URL: discoBase,
+        DISCOURSE_API_KEY: raw.DISCOURSE_API_KEY,
+        DISCOURSE_API_USERNAME: raw.DISCOURSE_API_USERNAME,
+        DISCOURSE_LOOKBACK_HOURS: raw.DISCOURSE_LOOKBACK_HOURS,
+        DISCOURSE_MAX_TOPICS: raw.DISCOURSE_MAX_TOPICS,
+        DISCOURSE_ENABLED: Boolean(discoBase && raw.DISCOURSE_API_KEY && raw.DISCOURSE_API_USERNAME),
     };
     // Mask secrets for logging
     function mask(s) {
@@ -80,10 +99,17 @@ function loadConfig() {
         maxTopicParticipants: config.MAX_TOPIC_PARTICIPANTS,
         attributionFallbackEnabled: config.ATTRIBUTION_FALLBACK_ENABLED,
         discordChannelsCount: config.DISCORD_CHANNELS.length,
+        discourse: {
+            enabled: config.DISCOURSE_ENABLED,
+            baseUrl: config.DISCOURSE_BASE_URL ? new URL(config.DISCOURSE_BASE_URL).hostname : undefined,
+            maxTopics: config.DISCOURSE_MAX_TOPICS ?? null,
+            lookbackHours: config.DISCOURSE_LOOKBACK_HOURS ?? null,
+        },
         secrets: {
             GEMINI_API_KEY: mask(process.env.GEMINI_API_KEY || ""),
             SLACK_BOT_TOKEN: mask(process.env.SLACK_BOT_TOKEN || ""),
             DISCORD_TOKEN: mask(process.env.DISCORD_TOKEN || ""),
+            DISCOURSE_API_KEY: mask(process.env.DISCOURSE_API_KEY || ""),
         },
     });
     return config;

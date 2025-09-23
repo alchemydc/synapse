@@ -13,9 +13,12 @@
 - Improved error handling and validation for model names.
 - Added `src/tools/discourse_debug.ts` — a Discourse API verification script that validates API key and basic access (/site.json, /latest.json, /categories.json).
 - Added Discourse placeholders to `.env.example` and npm script `discourse:debug` for local verification prior to full ingestion.
+- Updated LLM prompt wording in `src/services/llm/gemini.ts` to avoid generating a redundant "Key Topics" subheading per-topic (now instructs the model to start each topic with a single title line and emit labeled sections only when present).
+- Applied matching unit test update: `test/unit/gemini_prompt.test.ts` now expects the new prompt wording (removed "Key Topics" expectation).
+- Fixed TypeScript build errors in `src/services/discourse/index.ts` (removed unused variable and added `err: any` typing in post-normalization catch block).
+- Updated Slack digest formatting behavior via prompt adjustment so digest sections render with fewer redundant headings (formatter unchanged; prompt produces cleaner output).
 
 ## Next Steps
-- Make Slack output prettier and clearer.
 - Implement longer digest window on Mondays to capture weekend activity.
 - Add support for pulling messages from multiple Discord servers.
 - Flesh out Discourse integration:
@@ -39,7 +42,7 @@
 ## Next Steps
 - Idempotency and state persistence deferred for MVP (daily schedule sufficient).
 - Dockerfile and deployment notes pending.
-- Refine Slack sectioning and formatting as needed.
+- Refine Slack sectioning and formatting as needed (prompt-based improvement applied; further polish may follow).
 - Monitor LLM prompt stability and Slack formatting edge cases.
 - Plan staged Discourse rollout: debug → ingestion service → normalization → attribution → prompt/formatter updates.
 

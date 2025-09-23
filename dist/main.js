@@ -7,6 +7,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv_1 = __importDefault(require("dotenv"));
 const config_1 = require("./config");
 const discord_1 = require("./services/discord");
+const adapter_1 = require("./services/discord/adapter");
+const discourse_1 = require("./services/discourse");
 const gemini_1 = require("./services/llm/gemini");
 const slack_1 = require("./services/slack");
 const format_1 = require("./utils/format");
@@ -22,10 +24,44 @@ logger_1.logger.info(`Channels: ${config.DISCORD_CHANNELS.join(", ")}`);
 logger_1.logger.info(`Window: ${config.DIGEST_WINDOW_HOURS} hours`);
 async function run() {
     logger_1.logger.info("Fetching messages from Discord...");
-    const messages = await (0, discord_1.fetchMessages)(config.DISCORD_TOKEN, config.DISCORD_CHANNELS, config.DIGEST_WINDOW_HOURS);
-    logger_1.logger.info(`Fetched ${messages.length} messages.`);
+    const discordRaw = await (0, discord_1.fetchMessages)(config.DISCORD_TOKEN, config.DISCORD_CHANNELS, config.DIGEST_WINDOW_HOURS);
+    logger_1.logger.info(`Fetched ${discordRaw.length} messages from Discord.`);
+    // normalize Discord messages
+    const normalizedDiscord = (0, adapter_1.mapDiscordToNormalized)(discordRaw);
+    // optionally fetch Discourse messages
+    let normalizedAll = [...normalizedDiscord];
+    if (config.DISCOURSE_ENABLED) {
+        logger_1.logger.info("Discourse config detected — fetching messages from Discourse...");
+        try {
+            const discourseMsgs = await (0, discourse_1.fetchDiscourseMessages)({
+                baseUrl: config.DISCOURSE_BASE_URL,
+                apiKey: config.DISCOURSE_API_KEY,
+                apiUser: config.DISCOURSE_API_USERNAME,
+                windowHours: config.DIGEST_WINDOW_HOURS,
+                maxTopics: config.DISCOURSE_MAX_TOPICS ?? 50,
+                lookbackHours: config.DISCOURSE_LOOKBACK_HOURS,
+            });
+            logger_1.logger.info(`Fetched ${discourseMsgs.length} messages from Discourse.`);
+            normalizedAll.push(...discourseMsgs);
+        }
+        catch (err) {
+            logger_1.logger.warn("Discourse fetch failed; continuing with Discord-only messages.", { error: err?.message || err });
+        }
+    }
+    else {
+        logger_1.logger.info("Discourse disabled (env incomplete).");
+    }
+    // Reuse existing filters by mapping NormalizedMessage -> Discord-like MessageDTO shape
+    const candidateMessages = normalizedAll.map((m) => ({
+        id: m.id,
+        channelId: m.channelId || "",
+        author: m.author,
+        content: m.content,
+        createdAt: m.createdAt,
+        url: m.url,
+    }));
     logger_1.logger.info("Applying filters...");
-    const filteredMessages = (0, filters_1.applyMessageFilters)(messages, config);
+    const filteredMessages = (0, filters_1.applyMessageFilters)(candidateMessages, config);
     logger_1.logger.info(`Filtered to ${filteredMessages.length} messages.`);
     logger_1.logger.info("Summarizing messages...");
     let summary;

@@ -195,7 +195,6 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
           if (isNaN(createdTs)) continue;
           if (createdTs < since) continue;
 
-          const raw = p.raw ?? p.cooked ?? "";
           const content = p.raw ? String(p.raw) : stripHtml(String(p.cooked || ""));
 
           if (!content || String(content).trim() === "") continue;
@@ -218,7 +217,7 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
           };
 
           messages.push(nm);
-        } catch (err) {
+        } catch (err: any) {
           // If a single post normalization fails, skip it but continue processing others.
           console.warn(`Skipping post in topic ${topicId} due to error: ${err?.message || err}`);
           continue;

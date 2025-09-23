@@ -8,7 +8,7 @@
 - PRD for Node architecture drafted.
 - GitHub Actions workflow added for daily scheduled runs.
 - Zod config parsing fixed to apply defaults when envs are missing.
-- Memory bank updated to reflect new approach.
+- Memory bank updated to reflect new approach and recent implementation changes.
 
 ## What Works
 - Discord connectivity (guild/channel listing, pagination, filtering).
@@ -16,14 +16,15 @@
 - Gemini summarization with truncation.
 - Slack posting with Block Kit payloads and mrkdwn normalization.
 - Enriched prompt with channel name and timestamp; structured sections.
+- Prompt wording updated to avoid redundant per-topic "Key Topics" subheading (improves digest readability).
 - DRY_RUN path for safe testing.
 - Formatting and configuration strategy.
 - Zod preprocessors for robust default handling.
 - Discourse debug tooling operational: `src/tools/discourse_debug.ts` validates Discourse API access and prints site metadata, sample topics, and rate-limit headers.
-- `.env.example` updated with Discourse placeholders and an npm script `discourse:debug` added to assist local verification.
+- TypeScript build errors in the Discourse ingestion service were fixed (unused variable removed, error typing added).
 
 ## What’s Next
-- Make Slack output prettier and clearer.
+- Continue Slack formatting polish for edge-case mrkdwn rendering and Gemini 2.0 link behavior.
 - Implement longer digest window on Mondays to capture weekend activity.
 - Add support for pulling messages from multiple Discord servers.
 - Flesh out Discourse integration (broken into concrete sub-tasks below).
@@ -61,6 +62,8 @@
 - 2025-08-29: Plan to validate model names and provide a model listing utility.
 - 2025-08-28: Pivot to Node due to n8n license constraints and flexibility needs.
 - 2025-09-12: Added `discourse_debug` script and .env scaffolding; adopting staged integration approach (debug → ingestion → normalization → attribution → formatter/prompt).
+- 2025-09-23: Adjusted Gemini prompt to avoid redundant per-topic "Key Topics" headings; updated unit test to match new prompt wording.
+- 2025-09-23: Fixed TypeScript issues in Discourse ingestion normalization (unused var removed; error typing clarified).
 - Slack Block Kit adopted for digest formatting.
 - Configurable filters (min length, commands, link-only) added.
 - Gemini prompt enriched with channel/timestamp and structured sections.

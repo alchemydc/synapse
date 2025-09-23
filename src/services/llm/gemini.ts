@@ -24,7 +24,7 @@ function buildPrompt(messages: MessageDTO[]): string {
   return [
     "Community Digest:",
     "Summarize the following Discord messages. For each section, produce concise bullets.",
-    "Sections: Key Topics, Decisions, Action Items, Links.",
+    "Sections: Decisions, Action Items, Links. For each topic, start with a single title line and then concise bullets; do not add a separate 'Key Topics' heading.",
     "",
     ...messages.map((m, i) => `[${i + 1}] ${formatMessageLine(m)}`),
     "",
@@ -42,7 +42,7 @@ function buildAttributedPrompt(clusters: TopicCluster[], config: Config): string
 
   parts.push("Community Digest (Attributed):");
   parts.push("Summarize the following topic clusters derived from Discord messages.");
-  parts.push("For each topic, produce concise bullets under the sections: Key Topics, Decisions, Action Items, Links.");
+  parts.push("For each topic, produce concise bullets. If there are Decisions, Action Items, or Links, label those sections accordingly. Start each topic with a single title line; do not include an extra 'Key Topics' heading.");
   parts.push("For any bullet derived from a topic, include a trailing 'Participants: name1, name2' line listing the participants involved in that topic.");
   parts.push("Do not invent participants not listed below. Use the exact participant names provided.");
   parts.push("");

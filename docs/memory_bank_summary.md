@@ -1,10 +1,12 @@
 # Memory Bank Summary (2025-08-28)
 
-## Current State (2025-08-29)
+## Current State (2025-09-23)
 - Production unblocked; GEMINI_MODEL CI issue resolved via repo variable and build-before-start.
 - Daily digest running reliably; config and model validation in place.
 - Default model is gemini-1.5-flash; Gemini 2.0 link rendering is a pending fix.
-- Priorities: make Slack output prettier, implement longer Monday digest window, support multiple Discord servers, add Discourse forum ingestion, explore alternate LLM models, scaffold model listing/validation utility, fix Gemini 2.0 link formatting.
+- Recent prompt wording change reduces redundant per-topic "Key Topics" headings in digest output (improves Slack readability).
+- TypeScript build issues in Discourse ingestion normalization were fixed (unused var removed; error typing clarified).
+- Priorities: continue Slack mrkdwn polish, implement longer Monday digest window, support multiple Discord servers, add Discourse forum ingestion, explore alternate LLM models, scaffold model listing/validation utility, fix Gemini 2.0 link formatting.
 
 ## Project Brief
 Automated TypeScript/Node.js service to crawl Discord, summarize with LLM (Google Gemini), and post daily digests to Slack. Pivoted from n8n due to license/platform constraints.
@@ -16,7 +18,7 @@ Solves manual monitoring inefficiency, improves communication for technical/non-
 - MVP pipeline now: Discord fetch → Gemini summarize → Slack Block Kit post.
 - Slack digest uses Block Kit payloads with mrkdwn normalization.
 - Configurable message filters (min length, exclude commands, link-only) applied before summarization.
-- Gemini prompt enriched with channel name and timestamp; requests structured sections.
+- Gemini prompt enriched with channel name and timestamp; requests structured sections. Prompt wording adjusted to avoid redundant per-topic "Key Topics" headings.
 - Zod config parsing fixed to apply defaults when envs are missing.
 - GitHub Actions workflow added for daily scheduled runs.
 - Idempotency deferred for MVP.
@@ -37,4 +39,6 @@ Solves manual monitoring inefficiency, improves communication for technical/non-
 - MVP operational end-to-end with Slack Block Kit digest, message filters, and prompt enrichment.
 - GitHub Actions workflow added for daily scheduled runs.
 - Zod config parsing fixed to apply defaults when envs are missing.
-- Next: Dockerfile/deployment notes, monitor LLM prompt stability, refine Slack formatting.
+- Prompt wording updated to avoid redundant per-topic "Key Topics" headings; unit test updated to match new prompt wording.
+- TypeScript build errors in the Discourse ingestion normalization were fixed.
+- Next: Dockerfile/deployment notes, monitor LLM prompt stability, further Slack formatting polish.
