@@ -133,6 +133,19 @@ export async function summarize(messages: MessageDTO[], config: Config): Promise
 
   const prompt = buildPrompt(truncated);
 
+  // Debug: log prompt size and estimated token usage to detect budget exceedance
+  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+    try {
+      const promptLen = String(prompt).length;
+      const estTokens = Math.ceil(promptLen / 4);
+      logger.debug("[DEBUG] Gemini.prompt.len", promptLen);
+      logger.debug("[DEBUG] Gemini.prompt.estimatedTokens", estTokens);
+      logger.debug("[DEBUG] Gemini.maxTokens", config.MAX_SUMMARY_TOKENS);
+    } catch (e) {
+      // ignore logging failures
+    }
+  }
+
   const result = await model.generateContent({
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: {
@@ -169,6 +182,21 @@ export async function summarizeAttributed(clusters: TopicCluster[], config: Conf
     truncatedClusters.some((tc, idx) => (clusters[idx] ? tc.messages.length !== clusters[idx].messages.length : true));
   if (truncatedOccurred) {
     prompt += "\n\n[Note: input truncated to fit token budget]";
+  }
+
+  // Debug: log prompt size and estimated token usage for attributed prompt
+  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+    try {
+      const promptLen = String(prompt).length;
+      const estTokens = Math.ceil(promptLen / 4);
+      logger.debug("[DEBUG] Gemini.attributedPrompt.len", promptLen);
+      logger.debug("[DEBUG] Gemini.attributedPrompt.estimatedTokens", estTokens);
+      logger.debug("[DEBUG] Gemini.maxTokens", config.MAX_SUMMARY_TOKENS);
+      logger.debug("[DEBUG] Gemini.attributed.truncatedOccurred", truncatedOccurred);
+      logger.debug("[DEBUG] Gemini.attributed.inputClusters", truncatedClusters.length);
+    } catch (e) {
+      // ignore logging failures
+    }
   }
 
   const result = await model.generateContent({
