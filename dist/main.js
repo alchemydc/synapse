@@ -12,6 +12,7 @@ const discourse_1 = require("./services/discourse");
 const gemini_1 = require("./services/llm/gemini");
 const slack_1 = require("./services/slack");
 const format_1 = require("./utils/format");
+const source_link_inject_1 = require("./utils/source_link_inject");
 const logger_1 = require("./utils/logger");
 const time_1 = require("./utils/time");
 const filters_1 = require("./utils/filters");
@@ -105,13 +106,15 @@ async function run() {
     const lookbackMs = config.DIGEST_WINDOW_HOURS * 60 * 60 * 1000;
     const candidate = new Date(Date.now() - lookbackMs); // now - 24h
     const { start, end, dateTitle } = (0, time_1.getUtcDailyWindowFrom)(candidate);
+    // Inject links into the LLM-generated summary where registry metadata exists.
+    const linkedSummary = (0, source_link_inject_1.injectSourceLinks)(summary);
     const blocks = (0, format_1.buildDigestBlocks)({
-        summary,
+        summary: linkedSummary,
         start,
         end,
         dateTitle,
     });
-    const fallback = (0, format_1.formatDigest)(summary);
+    const fallback = (0, format_1.formatDigest)(linkedSummary);
     logger_1.logger.info("Posting digest to Slack...");
     await (0, slack_1.postDigestBlocks)(blocks, fallback, config);
     logger_1.logger.info("Pipeline complete.");

@@ -7,6 +7,7 @@ exports.fetchMessages = fetchMessages;
 // services/discord/index.ts
 const discord_js_1 = require("discord.js");
 const p_retry_1 = __importDefault(require("p-retry"));
+const link_registry_1 = require("../../utils/link_registry");
 async function fetchMessages(token, channelIds, windowHours) {
     const client = new discord_js_1.Client({
         intents: [
@@ -21,6 +22,21 @@ async function fetchMessages(token, channelIds, windowHours) {
     const allMessages = [];
     for (const channelId of channelIds) {
         const channel = await client.channels.fetch(channelId);
+        // Register channel metadata (best-effort) for link injection elsewhere
+        if (channel && channel instanceof discord_js_1.TextChannel) {
+            try {
+                (0, link_registry_1.registerDiscordChannel)({
+                    id: channelId,
+                    name: channel.name,
+                    guildId: channel.guildId,
+                    url: `https://discord.com/channels/${channel.guildId}/${channelId}`,
+                    platform: "discord",
+                });
+            }
+            catch (e) {
+                // ignore registration failures
+            }
+        }
         if (!channel || !(channel instanceof discord_js_1.TextChannel))
             continue;
         let lastId = undefined;

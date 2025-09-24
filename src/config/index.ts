@@ -86,6 +86,7 @@ const ConfigSchema = z.object({
   // Per-source enable flags
   ENABLE_DISCORD: z.preprocess(toBool, z.boolean()).default(true),
   ENABLE_DISCOURSE: z.preprocess(toBool, z.boolean()).default(true),
+  LINKED_SOURCE_LABELS: z.preprocess(toBool, z.boolean()).optional(),
 
   // Discourse-related optional settings
   DISCOURSE_BASE_URL: z.preprocess(toStr, z.string()).optional(),
@@ -131,6 +132,7 @@ export type Config = {
 
   ENABLE_DISCORD: boolean;
   ENABLE_DISCOURSE: boolean;
+  LINKED_SOURCE_LABELS?: boolean;
 
   // derived
   DISCORD_ENABLED: boolean;
@@ -154,11 +156,12 @@ export function loadConfig(): Config {
 
   const discoBase = normalizeBaseUrl(raw.DISCOURSE_BASE_URL);
 
-  const config: Config = {
+    const config: Config = {
     ...raw,
     DISCORD_CHANNELS: configBaseChannels,
     ENABLE_DISCORD: raw.ENABLE_DISCORD,
     ENABLE_DISCOURSE: raw.ENABLE_DISCOURSE,
+    LINKED_SOURCE_LABELS: typeof raw.LINKED_SOURCE_LABELS !== "undefined" ? raw.LINKED_SOURCE_LABELS : true,
     DISCOURSE_BASE_URL: discoBase,
     DISCOURSE_API_KEY: raw.DISCOURSE_API_KEY,
     DISCOURSE_API_USERNAME: raw.DISCOURSE_API_USERNAME,

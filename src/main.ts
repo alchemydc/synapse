@@ -7,6 +7,7 @@ import { fetchDiscourseMessages } from "./services/discourse";
 import { summarize, summarizeAttributed } from "./services/llm/gemini";
 import { postDigestBlocks } from "./services/slack";
 import { formatDigest, buildDigestBlocks } from "./utils/format";
+import { injectSourceLinks } from "./utils/source_link_inject";
 import { logger } from "./utils/logger";
 import { getUtcDailyWindowFrom } from "./utils/time";
 import { applyMessageFilters } from "./utils/filters";
@@ -110,13 +111,17 @@ async function run() {
   const lookbackMs = config.DIGEST_WINDOW_HOURS * 60 * 60 * 1000;
   const candidate = new Date(Date.now() - lookbackMs); // now - 24h
   const { start, end, dateTitle } = getUtcDailyWindowFrom(candidate);
+
+  // Inject links into the LLM-generated summary where registry metadata exists (configurable).
+  const linkedSummary = config.LINKED_SOURCE_LABELS === false ? summary : injectSourceLinks(summary);
+
   const blocks = buildDigestBlocks({
-    summary,
+    summary: linkedSummary,
     start,
     end,
     dateTitle,
   });
-  const fallback = formatDigest(summary);
+  const fallback = formatDigest(linkedSummary);
 
   logger.info("Posting digest to Slack...");
   await postDigestBlocks(blocks, fallback, config);
