@@ -7,7 +7,10 @@ const web_api_1 = require("@slack/web-api");
 const logger_1 = require("../../utils/logger");
 async function postDigest(text, config) {
     if (config.DRY_RUN) {
-        logger_1.logger.info("[DRY_RUN] Digest would be posted to Slack:", text);
+        logger_1.logger.info("[DRY_RUN] Digest preview\n" +
+            "----------------------------------------\n" +
+            String(text).trim() + "\n" +
+            "----------------------------------------");
         return;
     }
     const client = new web_api_1.WebClient(config.SLACK_BOT_TOKEN);
@@ -40,7 +43,10 @@ async function postDigest(text, config) {
 // New: Post Block Kit digest
 async function postDigestBlocks(blocks, textFallback, config) {
     if (config.DRY_RUN) {
-        logger_1.logger.info("[DRY_RUN] Digest blocks would be posted to Slack.");
+        logger_1.logger.info("[DRY_RUN] Digest preview\n" +
+            "----------------------------------------\n" +
+            String(textFallback).trim() + "\n" +
+            "----------------------------------------");
         return;
     }
     const client = new web_api_1.WebClient(config.SLACK_BOT_TOKEN);

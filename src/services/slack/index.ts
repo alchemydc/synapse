@@ -5,7 +5,12 @@ import { logger } from "../../utils/logger";
 
 export async function postDigest(text: string, config: Config): Promise<void> {
   if (config.DRY_RUN) {
-    logger.info("[DRY_RUN] Digest would be posted to Slack:", text);
+    logger.info(
+      "[DRY_RUN] Digest preview\n" +
+      "----------------------------------------\n" +
+      String(text).trim() + "\n" +
+      "----------------------------------------"
+    );
     return;
   }
 
@@ -43,7 +48,12 @@ export async function postDigestBlocks(
   config: Config
 ): Promise<void> {
   if (config.DRY_RUN) {
-    logger.info("[DRY_RUN] Digest blocks would be posted to Slack.");
+    logger.info(
+      "[DRY_RUN] Digest preview\n" +
+      "----------------------------------------\n" +
+      String(textFallback).trim() + "\n" +
+      "----------------------------------------"
+    );
     return;
   }
   const client = new WebClient(config.SLACK_BOT_TOKEN);
