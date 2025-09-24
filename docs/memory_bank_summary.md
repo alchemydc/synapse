@@ -4,6 +4,7 @@
 - Production unblocked; GEMINI_MODEL CI issue resolved via repo variable and build-before-start.
 - Daily digest running reliably; config and model validation in place.
 - Default model is gemini-1.5-flash; Gemini 2.0 link rendering is a pending fix.
+- Pipeline runs end-to-end; DRY_RUN output renders Discord and Discourse links correctly, but live Slack posts are mis-formatting Discord channel links and Discourse forum/topic links. Active debugging of the link-generation issue has been postponed per user request.
 - Recent prompt wording change reduces redundant per-topic "Key Topics" headings in digest output (improves Slack readability).
 - TypeScript build issues in Discourse ingestion normalization were fixed (unused var removed; error typing clarified).
 - Priorities: continue Slack mrkdwn polish, implement longer Monday digest window, support multiple Discord servers, add Discourse forum ingestion, explore alternate LLM models, scaffold model listing/validation utility, fix Gemini 2.0 link formatting.
@@ -42,3 +43,4 @@ Solves manual monitoring inefficiency, improves communication for technical/non-
 - Prompt wording updated to avoid redundant per-topic "Key Topics" headings; unit test updated to match new prompt wording.
 - TypeScript build errors in the Discourse ingestion normalization were fixed.
 - Next: Dockerfile/deployment notes, monitor LLM prompt stability, further Slack formatting polish.
+- Note: Slack output currently mis-formats Discord channel and Discourse links in live posts (DRY_RUN looks correct). Debugging and fix implementation deferred until user approval.

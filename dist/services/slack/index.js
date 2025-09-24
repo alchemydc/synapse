@@ -13,6 +13,9 @@ async function postDigest(text, config) {
             "----------------------------------------");
         return;
     }
+    if (config.LOG_LEVEL && config.LOG_LEVEL.toLowerCase() === "debug") {
+        logger_1.logger.debug("[DEBUG] Slack.postDigest.text", String(text).slice(0, 1200));
+    }
     const client = new web_api_1.WebClient(config.SLACK_BOT_TOKEN);
     let attempts = 0;
     while (attempts < 3) {
@@ -48,6 +51,19 @@ async function postDigestBlocks(blocks, textFallback, config) {
             String(textFallback).trim() + "\n" +
             "----------------------------------------");
         return;
+    }
+    if (config.LOG_LEVEL && config.LOG_LEVEL.toLowerCase() === "debug") {
+        logger_1.logger.debug("[DEBUG] Slack.postDigestBlocks.fallback", String(textFallback).slice(0, 1200));
+        try {
+            const max = Math.min(10, blocks.length);
+            for (let i = 0; i < max; i++) {
+                const b = blocks[i];
+                logger_1.logger.debug(`[DEBUG] Slack.block[${i}]`, JSON.stringify(b).slice(0, 1200));
+            }
+        }
+        catch (e) {
+            logger_1.logger.debug("[DEBUG] Error serializing blocks for debug output", e);
+        }
     }
     const client = new web_api_1.WebClient(config.SLACK_BOT_TOKEN);
     let attempts = 0;

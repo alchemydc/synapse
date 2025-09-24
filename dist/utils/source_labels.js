@@ -12,8 +12,15 @@ function formatSourceLabel(msg) {
         const id = msg.channelId ?? "";
         const chMeta = (0, link_registry_1.getDiscordChannelById)(id);
         const name = chMeta?.name ?? msg.channelName ?? id ?? "unknown-channel";
-        // ensure label is short and safe; remove spaces/newlines
-        const safe = String(name).replace(/\s+/g, "-").replace(/[^\w-]/g, "").slice(0, 40);
+        // sanitize name: remove emoji and decorative chars, keep letters/numbers/hyphen/underscore
+        // Use Unicode property escapes to preserve international names.
+        const cleaned = String(name)
+            .normalize("NFKD")
+            .replace(/[^\p{L}\p{N}\-_]+/gu, "-")
+            .replace(/^-+|-+$/g, "")
+            .replace(/-{2,}/g, "-")
+            .slice(0, 40) || "unknown-channel";
+        const safe = cleaned;
         return `[Discord #${safe}]`;
     }
     // Discourse/forum: prefer topic title when available, then category name, then numeric id

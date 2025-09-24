@@ -3,6 +3,7 @@
 ## Current Work Focus
 
 ## Blockers
+- Slack output formatting bug: Discord channel links and Discourse forum/topic links are not rendering correctly in Slack posts (links may point to local Slack channels or be missing). DRY_RUN output looks correct but live Slack formatting is broken and requires investigation.
 - None. Production unblocked; GEMINI_MODEL CI issue resolved via repo variable and build-before-start. All scheduled runs now succeed.
 
 ## Recent Changes

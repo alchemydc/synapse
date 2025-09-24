@@ -18,9 +18,12 @@ import { formatSourceLabel } from "./utils/source_labels";
 dotenv.config();
 const config: Config = loadConfig();
 
+const isDebug = config.LOG_LEVEL && config.LOG_LEVEL.toLowerCase() === "debug";
+
 logger.info("Synapse Digest Bot starting...");
 logger.info(`Channels: ${config.DISCORD_CHANNELS.join(", ")}`);
 logger.info(`Window: ${config.DIGEST_WINDOW_HOURS} hours`);
+if (isDebug) logger.debug("[DEBUG] Log level set to debug");
 
 async function run() {
   // Gather normalized messages from enabled sources
@@ -104,6 +107,11 @@ async function run() {
     }
   } else {
     summary = await summarize(filteredMessages, config);
+  }
+
+  if (isDebug) {
+    logger.debug("[DEBUG] summary.raw.len", summary.length);
+    logger.debug("[DEBUG] summary.raw.preview", summary.slice(0, 1200));
   }
 
   // Block Kit integration

@@ -1,12 +1,14 @@
 "use strict";
-// utils/format.ts
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.normalizeToSlackMrkdwn = normalizeToSlackMrkdwn;
 exports.truncateSection = truncateSection;
 exports.stripLeadingDigestTitle = stripLeadingDigestTitle;
 exports.buildDigestBlocks = buildDigestBlocks;
 exports.formatDigest = formatDigest;
+const logger_1 = require("./logger");
+// utils/format.ts
 // Normalize generic markdown to Slack mrkdwn
+const DEBUG_SLICE = 1200;
 function normalizeToSlackMrkdwn(md) {
     // Protect fenced code blocks
     const fences = [];
@@ -55,7 +57,13 @@ function stripLeadingDigestTitle(s) {
 }
 function buildDigestBlocks(params) {
     const cleaned = stripLeadingDigestTitle(params.summary);
+    if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+        logger_1.logger.debug("[DEBUG] buildDigestBlocks.cleaned", cleaned.slice(0, DEBUG_SLICE));
+    }
     const mrkdwn = normalizeToSlackMrkdwn(cleaned);
+    if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+        logger_1.logger.debug("[DEBUG] buildDigestBlocks.mrkdwn", mrkdwn.slice(0, DEBUG_SLICE));
+    }
     const range = `Time window: ${params.dateTitle} 00:00–${params.end.toISOString().slice(0, 10)} 00:00 UTC`;
     const blocks = [
         { type: "header", text: { type: "plain_text", text: `Community Digest — ${params.dateTitle} (UTC)` } },

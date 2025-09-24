@@ -51,6 +51,7 @@ const ConfigSchema = zod_1.z.object({
     // Per-source enable flags
     ENABLE_DISCORD: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
     ENABLE_DISCOURSE: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
+    LINKED_SOURCE_LABELS: zod_1.z.preprocess(toBool, zod_1.z.boolean()).optional(),
     // Discourse-related optional settings
     DISCOURSE_BASE_URL: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
     DISCOURSE_API_KEY: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
@@ -77,6 +78,7 @@ function loadConfig() {
         DISCORD_CHANNELS: configBaseChannels,
         ENABLE_DISCORD: raw.ENABLE_DISCORD,
         ENABLE_DISCOURSE: raw.ENABLE_DISCOURSE,
+        LINKED_SOURCE_LABELS: typeof raw.LINKED_SOURCE_LABELS !== "undefined" ? raw.LINKED_SOURCE_LABELS : true,
         DISCOURSE_BASE_URL: discoBase,
         DISCOURSE_API_KEY: raw.DISCOURSE_API_KEY,
         DISCOURSE_API_USERNAME: raw.DISCOURSE_API_USERNAME,

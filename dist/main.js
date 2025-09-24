@@ -21,9 +21,12 @@ const topics_1 = require("./utils/topics");
 const source_labels_1 = require("./utils/source_labels");
 dotenv_1.default.config();
 const config = (0, config_1.loadConfig)();
+const isDebug = config.LOG_LEVEL && config.LOG_LEVEL.toLowerCase() === "debug";
 logger_1.logger.info("Synapse Digest Bot starting...");
 logger_1.logger.info(`Channels: ${config.DISCORD_CHANNELS.join(", ")}`);
 logger_1.logger.info(`Window: ${config.DIGEST_WINDOW_HOURS} hours`);
+if (isDebug)
+    logger_1.logger.debug("[DEBUG] Log level set to debug");
 async function run() {
     // Gather normalized messages from enabled sources
     let normalizedAll = [];
@@ -101,13 +104,17 @@ async function run() {
     else {
         summary = await (0, gemini_1.summarize)(filteredMessages, config);
     }
+    if (isDebug) {
+        logger_1.logger.debug("[DEBUG] summary.raw.len", summary.length);
+        logger_1.logger.debug("[DEBUG] summary.raw.preview", summary.slice(0, 1200));
+    }
     // Block Kit integration
     logger_1.logger.info("Formatting digest...");
     const lookbackMs = config.DIGEST_WINDOW_HOURS * 60 * 60 * 1000;
     const candidate = new Date(Date.now() - lookbackMs); // now - 24h
     const { start, end, dateTitle } = (0, time_1.getUtcDailyWindowFrom)(candidate);
-    // Inject links into the LLM-generated summary where registry metadata exists.
-    const linkedSummary = (0, source_link_inject_1.injectSourceLinks)(summary);
+    // Inject links into the LLM-generated summary where registry metadata exists (configurable).
+    const linkedSummary = config.LINKED_SOURCE_LABELS === false ? summary : (0, source_link_inject_1.injectSourceLinks)(summary);
     const blocks = (0, format_1.buildDigestBlocks)({
         summary: linkedSummary,
         start,

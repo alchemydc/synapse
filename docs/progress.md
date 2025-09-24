@@ -3,6 +3,7 @@
 ## Current Status
 - Production unblocked; GEMINI_MODEL CI issue resolved via repo variable and build-before-start.
 - Daily digest running reliably with validated config and model logging.
+- Pipeline runs properly; DRY_RUN output renders links correctly, but live Slack posts are mis-formatting Discord channel links and Discourse forum/topic links.
 - MVP operational end-to-end with Slack Block Kit digest, message filters, and prompt enrichment.
 - Pivot from n8n to TypeScript/Node.js decided due to license restrictions.
 - PRD for Node architecture drafted.
@@ -47,7 +48,7 @@
 - Add unit tests for multi-source formatting and prompt context.
 
 ## Known Issues
-- Gemini 2.0 link formatting incorrect; links not rendered properly in summary output.
+- Gemini 2.0 link formatting incorrect; links not rendered properly in summary output. Additionally, Slack output is not correctly formatting Discord channel links or Discourse forum/topic links; links may resolve to local Slack channels or be missing in published digests.
 - n8n artifacts are deprecated; keep for reference only (do not deploy).
 - Need rate-limit tuning for Discord at scale.
 - Env validation diagnostics.
