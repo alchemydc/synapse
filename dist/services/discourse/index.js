@@ -72,6 +72,7 @@ async function fetchDiscourseMessages(opts) {
     // Optional verbose debug for Discourse fetch internals
     const discoDebug = (process.env.DISCOURSE_DEBUG_VERBOSE || "").toLowerCase();
     const DISCOURSE_DEBUG_VERBOSE = ["true", "1", "yes"].includes(discoDebug);
+    const LOG_DEBUG = (process.env.LOG_LEVEL || "").toLowerCase() === "debug";
     const debugCounters = {
         topicsExamined: 0,
         topicsSkippedOld: 0,
@@ -83,7 +84,7 @@ async function fetchDiscourseMessages(opts) {
         postsSkippedEmpty: 0,
         postsSkippedInvalidDate: 0,
     };
-    if (DISCOURSE_DEBUG_VERBOSE) {
+    if (DISCOURSE_DEBUG_VERBOSE || LOG_DEBUG) {
         console.info(`Discourse fetch: since=${new Date(since).toISOString()} now=${new Date(now).toISOString()} lookHours=${lookHours}`);
     }
     // Try to load category names to improve source labels / readability
@@ -170,6 +171,8 @@ async function fetchDiscourseMessages(opts) {
                 if (isPinned) {
                     if (DISCOURSE_DEBUG_VERBOSE) {
                         debugCounters.topicsSkippedOldPinned++;
+                    }
+                    if (LOG_DEBUG) {
                         console.info(`Skipping pinned old topic: id=${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()}`);
                     }
                     // skip pinned old topics but continue scanning the rest of this page
@@ -178,6 +181,8 @@ async function fetchDiscourseMessages(opts) {
                 // Non-pinned old topic: mark cutoff for stopping after this page
                 if (DISCOURSE_DEBUG_VERBOSE) {
                     debugCounters.topicsSkippedOld++;
+                }
+                if (LOG_DEBUG) {
                     console.info(`Marking old cutoff at topic ${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()} < since ${new Date(since).toISOString()}`);
                 }
                 reachedOldCutoff = true;
@@ -266,6 +271,8 @@ async function fetchDiscourseMessages(opts) {
                     if (createdTs < since) {
                         if (DISCOURSE_DEBUG_VERBOSE) {
                             debugCounters.postsSkippedOld++;
+                        }
+                        if (LOG_DEBUG) {
                             console.info(`Skipping old post in topic ${topicId}, postId=${p?.id}, createdAt=${createdAt}`);
                         }
                         continue;

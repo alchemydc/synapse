@@ -127,6 +127,19 @@ async function summarize(messages, config) {
     const maxChars = config.MAX_SUMMARY_TOKENS * 4;
     const truncated = truncateMessages(messages, maxChars);
     const prompt = buildPrompt(truncated);
+    // Debug: log prompt size and estimated token usage to detect budget exceedance
+    if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+        try {
+            const promptLen = String(prompt).length;
+            const estTokens = Math.ceil(promptLen / 4);
+            logger_1.logger.debug("[DEBUG] Gemini.prompt.len", promptLen);
+            logger_1.logger.debug("[DEBUG] Gemini.prompt.estimatedTokens", estTokens);
+            logger_1.logger.debug("[DEBUG] Gemini.maxTokens", config.MAX_SUMMARY_TOKENS);
+        }
+        catch (e) {
+            // ignore logging failures
+        }
+    }
     const result = await model.generateContent({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: {
@@ -157,6 +170,21 @@ async function summarizeAttributed(clusters, config) {
         truncatedClusters.some((tc, idx) => (clusters[idx] ? tc.messages.length !== clusters[idx].messages.length : true));
     if (truncatedOccurred) {
         prompt += "\n\n[Note: input truncated to fit token budget]";
+    }
+    // Debug: log prompt size and estimated token usage for attributed prompt
+    if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+        try {
+            const promptLen = String(prompt).length;
+            const estTokens = Math.ceil(promptLen / 4);
+            logger_1.logger.debug("[DEBUG] Gemini.attributedPrompt.len", promptLen);
+            logger_1.logger.debug("[DEBUG] Gemini.attributedPrompt.estimatedTokens", estTokens);
+            logger_1.logger.debug("[DEBUG] Gemini.maxTokens", config.MAX_SUMMARY_TOKENS);
+            logger_1.logger.debug("[DEBUG] Gemini.attributed.truncatedOccurred", truncatedOccurred);
+            logger_1.logger.debug("[DEBUG] Gemini.attributed.inputClusters", truncatedClusters.length);
+        }
+        catch (e) {
+            // ignore logging failures
+        }
     }
     const result = await model.generateContent({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
