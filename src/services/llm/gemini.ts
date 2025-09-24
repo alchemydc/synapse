@@ -24,7 +24,8 @@ function buildPrompt(messages: MessageDTO[]): string {
   return [
     "Community Digest:",
     "Summarize the following Discord messages. For each section, produce concise bullets.",
-    "Sections: Key Topics, Decisions, Action Items, Links.",
+    "Sections: Decisions, Action Items, Links. For each topic, start with a single title line and then concise bullets; do not add a separate 'Key Topics' heading.",
+    "Preserve any leading bracketed source labels (e.g. [Discord #channel], [Forum category]) exactly as provided. Treat the first pair of square brackets at the start of each message as immutable: do not remove, reword, translate, sanitize, expand, or alter the text inside them (including emojis or decorative characters). If you cannot summarize while keeping those labels unchanged, keep them unchanged and continue the summary.",
     "",
     ...messages.map((m, i) => `[${i + 1}] ${formatMessageLine(m)}`),
     "",
@@ -42,7 +43,8 @@ function buildAttributedPrompt(clusters: TopicCluster[], config: Config): string
 
   parts.push("Community Digest (Attributed):");
   parts.push("Summarize the following topic clusters derived from Discord messages.");
-  parts.push("For each topic, produce concise bullets under the sections: Key Topics, Decisions, Action Items, Links.");
+  parts.push("For each topic, produce concise bullets. If there are Decisions, Action Items, or Links, label those sections accordingly. Start each topic with a single title line; do not include an extra 'Key Topics' heading.");
+  parts.push("When generating each topic heading, preserve the leading bracketed source label exactly as provided (e.g., [Discord #channel], [Forum category]). Treat the first pair of square brackets at the start of the heading as immutable: do not remove, reword, translate, sanitize, expand, or alter the text inside them (including emojis or decorative characters). If you cannot summarize while keeping those labels unchanged, keep them unchanged and continue the summary.");
   parts.push("For any bullet derived from a topic, include a trailing 'Participants: name1, name2' line listing the participants involved in that topic.");
   parts.push("Do not invent participants not listed below. Use the exact participant names provided.");
   parts.push("");
@@ -122,7 +124,7 @@ export async function summarize(messages: MessageDTO[], config: Config): Promise
   }
   logger.info("Gemini init", { model: config.GEMINI_MODEL, maxTokens: config.MAX_SUMMARY_TOKENS });
 
-  const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
+  const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY || "");
   const model: GenerativeModel = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
 
   // Truncate to fit token budget (roughly 4 chars per token)
@@ -130,6 +132,19 @@ export async function summarize(messages: MessageDTO[], config: Config): Promise
   const truncated = truncateMessages(messages, maxChars);
 
   const prompt = buildPrompt(truncated);
+
+  // Debug: log prompt size and estimated token usage to detect budget exceedance
+  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+    try {
+      const promptLen = String(prompt).length;
+      const estTokens = Math.ceil(promptLen / 4);
+      logger.debug("[DEBUG] Gemini.prompt.len", promptLen);
+      logger.debug("[DEBUG] Gemini.prompt.estimatedTokens", estTokens);
+      logger.debug("[DEBUG] Gemini.maxTokens", config.MAX_SUMMARY_TOKENS);
+    } catch (e) {
+      // ignore logging failures
+    }
+  }
 
   const result = await model.generateContent({
     contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -153,7 +168,7 @@ export async function summarizeAttributed(clusters: TopicCluster[], config: Conf
   }
   logger.info("Gemini attributed init", { model: config.GEMINI_MODEL, maxTokens: config.MAX_SUMMARY_TOKENS });
 
-  const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
+  const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY || "");
   const model: GenerativeModel = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
 
   // Build prompt from clusters and truncate to token budget.
@@ -167,6 +182,21 @@ export async function summarizeAttributed(clusters: TopicCluster[], config: Conf
     truncatedClusters.some((tc, idx) => (clusters[idx] ? tc.messages.length !== clusters[idx].messages.length : true));
   if (truncatedOccurred) {
     prompt += "\n\n[Note: input truncated to fit token budget]";
+  }
+
+  // Debug: log prompt size and estimated token usage for attributed prompt
+  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+    try {
+      const promptLen = String(prompt).length;
+      const estTokens = Math.ceil(promptLen / 4);
+      logger.debug("[DEBUG] Gemini.attributedPrompt.len", promptLen);
+      logger.debug("[DEBUG] Gemini.attributedPrompt.estimatedTokens", estTokens);
+      logger.debug("[DEBUG] Gemini.maxTokens", config.MAX_SUMMARY_TOKENS);
+      logger.debug("[DEBUG] Gemini.attributed.truncatedOccurred", truncatedOccurred);
+      logger.debug("[DEBUG] Gemini.attributed.inputClusters", truncatedClusters.length);
+    } catch (e) {
+      // ignore logging failures
+    }
   }
 
   const result = await model.generateContent({

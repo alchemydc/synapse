@@ -28,7 +28,7 @@ describe("Gemini prompt builder", () => {
     expect(prompt).toContain(`[1] [chan1 @ ${d1} ${tz}] foo`);
     expect(prompt).toContain(`[2] [chan2 @ ${d2} ${tz}] bar`);
     expect(prompt).toContain("Community Digest:");
-    expect(prompt).toContain("Sections: Key Topics, Decisions, Action Items, Links.");
+    expect(prompt).toContain("Sections: Decisions, Action Items, Links.");
   });
 
   it("truncates messages to max chars", () => {

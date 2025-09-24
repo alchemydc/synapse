@@ -7,7 +7,13 @@ exports.fetchMessages = fetchMessages;
 // services/discord/index.ts
 const discord_js_1 = require("discord.js");
 const p_retry_1 = __importDefault(require("p-retry"));
+const link_registry_1 = require("../../utils/link_registry");
+const logger_1 = require("../../utils/logger");
 async function fetchMessages(token, channelIds, windowHours) {
+    if (!token) {
+        logger_1.logger.error("DISCORD_TOKEN is required but missing");
+        throw new Error("DISCORD_TOKEN is required to fetch Discord messages");
+    }
     const client = new discord_js_1.Client({
         intents: [
             discord_js_1.GatewayIntentBits.Guilds,
@@ -21,6 +27,30 @@ async function fetchMessages(token, channelIds, windowHours) {
     const allMessages = [];
     for (const channelId of channelIds) {
         const channel = await client.channels.fetch(channelId);
+        // Register channel metadata (best-effort) for link injection elsewhere
+        if (channel && channel instanceof discord_js_1.TextChannel) {
+            try {
+                const meta = {
+                    id: channelId,
+                    name: channel.name,
+                    guildId: channel.guildId,
+                    url: `https://discord.com/channels/${channel.guildId}/${channelId}`,
+                    platform: "discord",
+                };
+                (0, link_registry_1.registerDiscordChannel)(meta);
+                if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+                    try {
+                        logger_1.logger.debug("[DEBUG] registerDiscordChannel", { id: meta.id, name: meta.name, guildId: meta.guildId, urlPresent: Boolean(meta.url) });
+                    }
+                    catch (e) {
+                        // ignore logging failures
+                    }
+                }
+            }
+            catch (e) {
+                // ignore registration failures
+            }
+        }
         if (!channel || !(channel instanceof discord_js_1.TextChannel))
             continue;
         let lastId = undefined;
@@ -39,6 +69,7 @@ async function fetchMessages(token, channelIds, windowHours) {
                 allMessages.push({
                     id: msg.id,
                     channelId,
+                    channelName: channel.name,
                     author: msg.author.username,
                     content: msg.content,
                     createdAt: new Date(msg.createdTimestamp).toISOString(),

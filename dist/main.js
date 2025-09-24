@@ -7,25 +7,86 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv_1 = __importDefault(require("dotenv"));
 const config_1 = require("./config");
 const discord_1 = require("./services/discord");
+const adapter_1 = require("./services/discord/adapter");
+const discourse_1 = require("./services/discourse");
 const gemini_1 = require("./services/llm/gemini");
 const slack_1 = require("./services/slack");
 const format_1 = require("./utils/format");
+const source_link_inject_1 = require("./utils/source_link_inject");
 const logger_1 = require("./utils/logger");
 const time_1 = require("./utils/time");
 const filters_1 = require("./utils/filters");
 const participants_fallback_1 = __importDefault(require("./utils/participants_fallback"));
 const topics_1 = require("./utils/topics");
+const source_labels_1 = require("./utils/source_labels");
 dotenv_1.default.config();
 const config = (0, config_1.loadConfig)();
+const isDebug = config.LOG_LEVEL && config.LOG_LEVEL.toLowerCase() === "debug";
 logger_1.logger.info("Synapse Digest Bot starting...");
 logger_1.logger.info(`Channels: ${config.DISCORD_CHANNELS.join(", ")}`);
 logger_1.logger.info(`Window: ${config.DIGEST_WINDOW_HOURS} hours`);
+if (isDebug)
+    logger_1.logger.debug("[DEBUG] Log level set to debug");
 async function run() {
-    logger_1.logger.info("Fetching messages from Discord...");
-    const messages = await (0, discord_1.fetchMessages)(config.DISCORD_TOKEN, config.DISCORD_CHANNELS, config.DIGEST_WINDOW_HOURS);
-    logger_1.logger.info(`Fetched ${messages.length} messages.`);
+    // Gather normalized messages from enabled sources
+    let normalizedAll = [];
+    if (config.DISCORD_ENABLED) {
+        logger_1.logger.info("Fetching messages from Discord...");
+        const discordRaw = await (0, discord_1.fetchMessages)(config.DISCORD_TOKEN, config.DISCORD_CHANNELS, config.DIGEST_WINDOW_HOURS);
+        logger_1.logger.info(`Fetched ${discordRaw.length} messages from Discord.`);
+        // normalize Discord messages
+        const normalizedDiscord = (0, adapter_1.mapDiscordToNormalized)(discordRaw);
+        normalizedAll.push(...normalizedDiscord);
+    }
+    else {
+        logger_1.logger.info("Discord disabled by config.");
+    }
+    // Discourse: honor explicit enable flag vs incomplete credentials
+    if (config.ENABLE_DISCOURSE === false) {
+        logger_1.logger.info("Discourse disabled by flag.");
+    }
+    else if (config.DISCOURSE_ENABLED) {
+        logger_1.logger.info("Discourse config detected — fetching messages from Discourse...");
+        try {
+            const discourseMsgs = await (0, discourse_1.fetchDiscourseMessages)({
+                baseUrl: config.DISCOURSE_BASE_URL,
+                apiKey: config.DISCOURSE_API_KEY,
+                apiUser: config.DISCOURSE_API_USERNAME,
+                windowHours: config.DIGEST_WINDOW_HOURS,
+                maxTopics: config.DISCOURSE_MAX_TOPICS ?? 50,
+                lookbackHours: config.DISCOURSE_LOOKBACK_HOURS,
+            });
+            logger_1.logger.info(`Fetched ${discourseMsgs.length} messages from Discourse.`);
+            normalizedAll.push(...discourseMsgs);
+        }
+        catch (err) {
+            logger_1.logger.warn("Discourse fetch failed; continuing with available messages.", { error: err?.message || err });
+        }
+    }
+    else {
+        logger_1.logger.info("Discourse disabled (incomplete credentials).");
+    }
+    // Reuse existing filters by mapping NormalizedMessage -> Discord-like MessageDTO shape
+    // Also inject a stable source label into channelId so clusters and prompts retain source info.
+    const candidateMessages = normalizedAll.map((m) => {
+        const sourceLabel = (0, source_labels_1.formatSourceLabel)({
+            source: m.source,
+            channelId: m.channelId,
+            forum: m.forum,
+            categoryId: m.categoryId,
+        });
+        return {
+            id: m.id,
+            // Preface channelId with the bracketed source label so downstream clustering and prompts include it.
+            channelId: `${sourceLabel} ${m.channelId || ""}`.trim(),
+            author: m.author,
+            content: m.content,
+            createdAt: m.createdAt,
+            url: m.url,
+        };
+    });
     logger_1.logger.info("Applying filters...");
-    const filteredMessages = (0, filters_1.applyMessageFilters)(messages, config);
+    const filteredMessages = (0, filters_1.applyMessageFilters)(candidateMessages, config);
     logger_1.logger.info(`Filtered to ${filteredMessages.length} messages.`);
     logger_1.logger.info("Summarizing messages...");
     let summary;
@@ -43,18 +104,24 @@ async function run() {
     else {
         summary = await (0, gemini_1.summarize)(filteredMessages, config);
     }
+    if (isDebug) {
+        logger_1.logger.debug("[DEBUG] summary.raw.len", summary.length);
+        logger_1.logger.debug("[DEBUG] summary.raw.preview", summary.slice(0, 1200));
+    }
     // Block Kit integration
     logger_1.logger.info("Formatting digest...");
     const lookbackMs = config.DIGEST_WINDOW_HOURS * 60 * 60 * 1000;
     const candidate = new Date(Date.now() - lookbackMs); // now - 24h
     const { start, end, dateTitle } = (0, time_1.getUtcDailyWindowFrom)(candidate);
+    // Inject links into the LLM-generated summary where registry metadata exists (configurable).
+    const linkedSummary = config.LINKED_SOURCE_LABELS === false ? summary : (0, source_link_inject_1.injectSourceLinks)(summary);
     const blocks = (0, format_1.buildDigestBlocks)({
-        summary,
+        summary: linkedSummary,
         start,
         end,
         dateTitle,
     });
-    const fallback = (0, format_1.formatDigest)(summary);
+    const fallback = (0, format_1.formatDigest)(linkedSummary);
     logger_1.logger.info("Posting digest to Slack...");
     await (0, slack_1.postDigestBlocks)(blocks, fallback, config);
     logger_1.logger.info("Pipeline complete.");

@@ -5,11 +5,27 @@ import { logger } from "../../utils/logger";
 
 export async function postDigest(text: string, config: Config): Promise<void> {
   if (config.DRY_RUN) {
-    logger.info("[DRY_RUN] Digest would be posted to Slack:", text);
+    logger.info(
+      "[DRY_RUN] Digest preview\n" +
+      "----------------------------------------\n" +
+      String(text).trim() + "\n" +
+      "----------------------------------------"
+    );
     return;
   }
 
-  const client = new WebClient(config.SLACK_BOT_TOKEN);
+  // Ensure required Slack runtime values are present when not in DRY_RUN
+  if (!config.SLACK_BOT_TOKEN || !config.SLACK_CHANNEL_ID) {
+    logger.error("SLACK_BOT_TOKEN and SLACK_CHANNEL_ID are required to post to Slack");
+    throw new Error("Missing Slack credentials or channel id");
+  }
+ 
+
+  if (config.LOG_LEVEL && config.LOG_LEVEL.toLowerCase() === "debug") {
+    logger.debug("[DEBUG] Slack.postDigest.text", String(text).slice(0, 1200));
+  }
+
+  const client = new WebClient(config.SLACK_BOT_TOKEN!);
 
   let attempts = 0;
   while (attempts < 3) {
@@ -43,10 +59,36 @@ export async function postDigestBlocks(
   config: Config
 ): Promise<void> {
   if (config.DRY_RUN) {
-    logger.info("[DRY_RUN] Digest blocks would be posted to Slack.");
+    logger.info(
+      "[DRY_RUN] Digest preview\n" +
+      "----------------------------------------\n" +
+      String(textFallback).trim() + "\n" +
+      "----------------------------------------"
+    );
     return;
   }
-  const client = new WebClient(config.SLACK_BOT_TOKEN);
+
+  // Ensure required Slack runtime values are present when not in DRY_RUN
+  if (!config.SLACK_BOT_TOKEN || !config.SLACK_CHANNEL_ID) {
+    logger.error("SLACK_BOT_TOKEN and SLACK_CHANNEL_ID are required to post to Slack blocks");
+    throw new Error("Missing Slack credentials or channel id");
+  }
+ 
+
+  if (config.LOG_LEVEL && config.LOG_LEVEL.toLowerCase() === "debug") {
+    logger.debug("[DEBUG] Slack.postDigestBlocks.fallback", String(textFallback).slice(0, 1200));
+    try {
+      const max = Math.min(10, blocks.length);
+      for (let i = 0; i < max; i++) {
+        const b = blocks[i];
+        logger.debug(`[DEBUG] Slack.block[${i}]`, JSON.stringify(b).slice(0, 1200));
+      }
+    } catch (e) {
+      logger.debug("[DEBUG] Error serializing blocks for debug output", e);
+    }
+  }
+
+  const client = new WebClient(config.SLACK_BOT_TOKEN!);
 
   let attempts = 0;
   while (attempts < 3) {

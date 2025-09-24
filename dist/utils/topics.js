@@ -18,14 +18,10 @@ const UNKNOWN_AUTHOR = "unknown";
 function clusterMessages(messages, gapMinutes = 20) {
     if (!messages || messages.length === 0)
         return [];
-    // Sort by channelId then timestamp ascending
-    const sorted = [...messages].sort((a, b) => {
-        if (a.channelId < b.channelId)
-            return -1;
-        if (a.channelId > b.channelId)
-            return 1;
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    });
+    // Sort by timestamp ascending to produce globally chronological clusters.
+    // This interleaves channels (Discord + Discourse) so the LLM sees time-ordered topics
+    // and prevents one source from consuming the token budget before others.
+    const sorted = [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     const clusters = [];
     let current = null;
     let id = 1;

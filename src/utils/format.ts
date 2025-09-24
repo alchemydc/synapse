@@ -1,6 +1,9 @@
+import { logger } from "./logger";
+
 // utils/format.ts
 
 // Normalize generic markdown to Slack mrkdwn
+const DEBUG_SLICE = 1200;
 export function normalizeToSlackMrkdwn(md: string): string {
   // Protect fenced code blocks
   const fences: string[] = [];
@@ -62,7 +65,13 @@ export function buildDigestBlocks(params: {
   dateTitle: string; // YYYY-MM-DD (UTC)
 }): any[] {
   const cleaned = stripLeadingDigestTitle(params.summary);
+  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+    logger.debug("[DEBUG] buildDigestBlocks.cleaned", cleaned.slice(0, DEBUG_SLICE));
+  }
   const mrkdwn = normalizeToSlackMrkdwn(cleaned);
+  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+    logger.debug("[DEBUG] buildDigestBlocks.mrkdwn", mrkdwn.slice(0, DEBUG_SLICE));
+  }
   const range = `Time window: ${params.dateTitle} 00:00–${params.end.toISOString().slice(0,10)} 00:00 UTC`;
 
   const blocks: any[] = [

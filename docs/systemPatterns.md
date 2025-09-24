@@ -10,6 +10,7 @@
 - Utilities: formatter, logger, time window and pagination helpers, filters util.
 - Configuration: .env for keys; config module for defaults/overrides.
 - zod-based config validation, DRY_RUN switch, token-budget truncation, Discord connectivity debug tool.
+- Source attribution: topic headings are prefixed with a bracketed source label to indicate origin (e.g., [Discord #channel], [Forum category:12]).
 
 ## Key Technical Decisions
 - TypeScript/Node.js over workflow engine (n8n) due to license/platform constraints.
