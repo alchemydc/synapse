@@ -144,3 +144,15 @@ export function lookupDiscourseCategoryByLabel(labelText: string): CategoryMeta 
 export function lookupDiscourseTopicByLabel(labelText: string): TopicMeta | undefined {
   return getDiscourseTopicByTitle(labelText.trim().toLowerCase());
 }
+
+/**
+ * Reset all in-memory registries — intended for unit tests.
+ */
+export function resetRegistries() {
+  for (const k of Object.keys(discordChannels)) delete (discordChannels as any)[k];
+  for (const k of Object.keys(discordChannelsByNameLower)) delete (discordChannelsByNameLower as any)[k];
+  for (const k of Object.keys(discourseCategories)) delete (discourseCategories as any)[k];
+  for (const k of Object.keys(discourseCategoriesByNameLower)) delete (discourseCategoriesByNameLower as any)[k];
+  for (const k of Object.keys(discourseTopics)) delete (discourseTopics as any)[k];
+  for (const k of Object.keys(discourseTopicsByTitleLower)) delete (discourseTopicsByTitleLower as any)[k];
+}

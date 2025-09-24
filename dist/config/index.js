@@ -111,6 +111,7 @@ function loadConfig() {
             enableDiscord: raw.ENABLE_DISCORD,
             enableDiscourse: raw.ENABLE_DISCOURSE,
         },
+        linkedSourceLabels: config.LINKED_SOURCE_LABELS,
         discord: {
             enabled: config.DISCORD_ENABLED,
             channelsCount: config.DISCORD_CHANNELS.length,
@@ -126,7 +127,7 @@ function loadConfig() {
             SLACK_BOT_TOKEN: mask(process.env.SLACK_BOT_TOKEN || ""),
             DISCORD_TOKEN: mask(process.env.DISCORD_TOKEN || ""),
             DISCOURSE_API_KEY: mask(process.env.DISCOURSE_API_KEY || ""),
-        },
+        }
     });
     return config;
 }

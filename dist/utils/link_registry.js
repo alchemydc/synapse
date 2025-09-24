@@ -12,6 +12,7 @@ exports.getDiscourseTopicByTitle = getDiscourseTopicByTitle;
 exports.lookupDiscordByLabel = lookupDiscordByLabel;
 exports.lookupDiscourseCategoryByLabel = lookupDiscourseCategoryByLabel;
 exports.lookupDiscourseTopicByLabel = lookupDiscourseTopicByLabel;
+exports.resetRegistries = resetRegistries;
 /**
  * Simple in-memory registries for mapping ids/names -> link metadata.
  * This is intentionally minimal and process-local. Callers should register
@@ -23,13 +24,44 @@ const discourseCategories = {}; // keyed by category id
 const discourseCategoriesByNameLower = {}; // keyed by name.toLowerCase()
 const discourseTopics = {}; // keyed by topic id
 const discourseTopicsByTitleLower = {}; // keyed by title.toLowerCase()
+/**
+ * Helper: create a simplified, ASCII-friendly lowercase name used for permissive lookups.
+ * Strips emoji/decorative characters and keeps letters, numbers, spaces, hyphen, underscore.
+ */
+function sanitizeNameForLookup(s) {
+    if (!s)
+        return "";
+    try {
+        const normalized = String(s).normalize("NFKD");
+        try {
+            return normalized.replace(/[^\p{L}\p{N}\s\-_]/gu, "").trim().toLowerCase();
+        }
+        catch {
+            return normalized.replace(/[^\w\s\-_]/g, "").trim().toLowerCase();
+        }
+    }
+    catch {
+        return String(s).replace(/[^\w\s\-_]/g, "").trim().toLowerCase();
+    }
+}
 // Discord
 function registerDiscordChannel(meta) {
     if (!meta || !meta.id)
         return;
     discordChannels[meta.id] = meta;
     if (meta.name) {
-        discordChannelsByNameLower[meta.name.toLowerCase()] = meta;
+        const nameLower = meta.name.toLowerCase();
+        discordChannelsByNameLower[nameLower] = meta;
+        // Index a sanitized variant so lookups like "general" match "🍀┊general" etc.
+        const sanitized = sanitizeNameForLookup(meta.name);
+        if (sanitized && sanitized !== nameLower) {
+            discordChannelsByNameLower[sanitized] = meta;
+        }
+        // Also index a "simple" variant removing leading non-alphanum characters (e.g., "┊zingo" -> "zingo")
+        const simple = nameLower.replace(/^[^a-z0-9]+/i, "").trim();
+        if (simple && simple !== nameLower && simple !== sanitized) {
+            discordChannelsByNameLower[simple] = meta;
+        }
     }
 }
 function getDiscordChannelById(id) {
@@ -93,4 +125,21 @@ function lookupDiscourseCategoryByLabel(labelText) {
 }
 function lookupDiscourseTopicByLabel(labelText) {
     return getDiscourseTopicByTitle(labelText.trim().toLowerCase());
+}
+/**
+ * Reset all in-memory registries — intended for unit tests.
+ */
+function resetRegistries() {
+    for (const k of Object.keys(discordChannels))
+        delete discordChannels[k];
+    for (const k of Object.keys(discordChannelsByNameLower))
+        delete discordChannelsByNameLower[k];
+    for (const k of Object.keys(discourseCategories))
+        delete discourseCategories[k];
+    for (const k of Object.keys(discourseCategoriesByNameLower))
+        delete discourseCategoriesByNameLower[k];
+    for (const k of Object.keys(discourseTopics))
+        delete discourseTopics[k];
+    for (const k of Object.keys(discourseTopicsByTitleLower))
+        delete discourseTopicsByTitleLower[k];
 }

@@ -24,11 +24,13 @@ const toStr = (v: unknown) => {
 };
 
 const ConfigSchema = z.object({
-  DISCORD_TOKEN: z.string(),
-  DISCORD_CHANNELS: z.string(),
-  SLACK_BOT_TOKEN: z.string(),
-  SLACK_CHANNEL_ID: z.string(),
-  GEMINI_API_KEY: z.string(),
+  // Credentials and optional endpoints — mark optional unless necessary at runtime.
+  DISCORD_TOKEN: z.preprocess(toStr, z.string()).optional(),
+  DISCORD_CHANNELS: z.preprocess(toStr, z.string()).optional(),
+  SLACK_BOT_TOKEN: z.preprocess(toStr, z.string()).optional(),
+  SLACK_CHANNEL_ID: z.preprocess(toStr, z.string()).optional(),
+  GEMINI_API_KEY: z.preprocess(toStr, z.string()).optional(),
+
   GEMINI_MODEL: z.preprocess(toStr, z.string()).default("gemini-1.5-flash"),
 
   MAX_SUMMARY_TOKENS: z.preprocess(
@@ -83,9 +85,9 @@ const ConfigSchema = z.object({
     z.boolean()
   ).default(true),
 
-  // Per-source enable flags
-  ENABLE_DISCORD: z.preprocess(toBool, z.boolean()).default(true),
-  ENABLE_DISCOURSE: z.preprocess(toBool, z.boolean()).default(true),
+  // Per-source enable flags (keep defaults but allow explicit unset)
+  ENABLE_DISCORD: z.preprocess(toBool, z.boolean()).optional().default(true),
+  ENABLE_DISCOURSE: z.preprocess(toBool, z.boolean()).optional().default(true),
   LINKED_SOURCE_LABELS: z.preprocess(toBool, z.boolean()).optional(),
 
   // Discourse-related optional settings
@@ -105,11 +107,12 @@ const ConfigSchema = z.object({
 });
 
 export type Config = {
-  DISCORD_TOKEN: string;
-  DISCORD_CHANNELS: string[];
-  SLACK_BOT_TOKEN: string;
-  SLACK_CHANNEL_ID: string;
-  GEMINI_API_KEY: string;
+  // Credentials / optional endpoints
+  DISCORD_TOKEN?: string;
+  DISCORD_CHANNELS: string[]; // parsed to array; may be empty
+  SLACK_BOT_TOKEN?: string;
+  SLACK_CHANNEL_ID?: string;
+  GEMINI_API_KEY?: string;
   GEMINI_MODEL: string;
   MAX_SUMMARY_TOKENS: number;
   DRY_RUN: boolean;
@@ -152,7 +155,7 @@ export function loadConfig(): Config {
     throw new Error("Invalid config: " + JSON.stringify(parsed.error.format()));
   }
   const raw = parsed.data;
-  const configBaseChannels = raw.DISCORD_CHANNELS.split(",").map((id: string) => id.trim()).filter(Boolean);
+  const configBaseChannels = (raw.DISCORD_CHANNELS ?? "").split(",").map((id: string) => id.trim()).filter(Boolean);
 
   const discoBase = normalizeBaseUrl(raw.DISCOURSE_BASE_URL);
 

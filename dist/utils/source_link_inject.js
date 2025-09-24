@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.injectSourceLinks = injectSourceLinks;
 // src/utils/source_link_inject.ts
 const link_registry_1 = require("./link_registry");
+const logger_1 = require("./logger");
 /**
  * Replace stable bracketed source labels with Slack-friendly <url|label> links
  * when metadata is available in the runtime registry.
@@ -42,21 +43,48 @@ function sanitizeVisible(s) {
 function injectSourceLinks(md) {
     if (!md || typeof md !== "string")
         return md;
+    let discordFound = 0;
+    let discordLinked = 0;
+    const discordSamples = [];
     // Discord: [Discord #name] optionally followed by raw channel id
     md = md.replace(/\[Discord\s+#([^\]]+)\](?:\s+([0-9]{8,30}))?/g, (_m, label, id) => {
+        discordFound++;
+        const sample = { label, id: id || null, byId: null, byLabel: null };
         // Prefer lookup by numeric id if present
         if (id) {
             const byId = (0, link_registry_1.getDiscordChannelById)(id);
-            if (byId && byId.url) {
-                const visible = `#${sanitizeVisible(byId.name) || id}`;
-                return `[Discord <${byId.url}|${visible}>]`;
+            sample.byId = byId ? { id: byId.id, name: byId.name, guildId: byId.guildId, urlPresent: Boolean(byId.url) } : null;
+            if (byId) {
+                // synthesize url if missing but guildId is available
+                const url = byId.url ||
+                    (byId.guildId ? `https://discord.com/channels/${byId.guildId}/${id}` : undefined);
+                if (url) {
+                    discordLinked++;
+                    const visible = `#${sanitizeVisible(byId.name) || id}`;
+                    // capture one sample for debugging
+                    if (discordSamples.length < 6)
+                        discordSamples.push({ used: "byId", label, id, url, visible });
+                    return `[Discord <${url}|${visible}>]`;
+                }
             }
         }
+        // Fallback: lookup by label text (e.g. "#general" or "general")
         const meta = (0, link_registry_1.lookupDiscordByLabel)(`#${label}`);
-        if (meta && meta.url) {
-            const visible = `#${sanitizeVisible(meta.name) || label}`;
-            return `[Discord <${meta.url}|${visible}>]`;
+        sample.byLabel = meta ? { id: meta.id, name: meta.name, guildId: meta.guildId, urlPresent: Boolean(meta.url) } : null;
+        if (meta) {
+            const url = meta.url ||
+                (meta.guildId ? `https://discord.com/channels/${meta.guildId}/${meta.id}` : undefined);
+            if (url) {
+                discordLinked++;
+                const visible = `#${sanitizeVisible(meta.name) || label}`;
+                if (discordSamples.length < 6)
+                    discordSamples.push({ used: "byLabel", label, id: id || null, url, visible });
+                return `[Discord <${url}|${visible}>]`;
+            }
         }
+        // No metadata available; leave the original label intact
+        if (discordSamples.length < 6)
+            discordSamples.push({ used: "none", label, id: id || null });
         return `[Discord #${label}]${id ? " " + id : ""}`;
     });
     // Forum topic: [Forum topic:Some title] — also handle if LLM preserved a following disc-topic-<id>
@@ -94,5 +122,13 @@ function injectSourceLinks(md) {
         }
         return `[Forum category:${label}]${discToken ? " " + discToken : ""}`;
     });
+    if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+        try {
+            logger_1.logger.debug("[DEBUG] injectSourceLinks.discord", { discordFound, discordLinked, samples: discordSamples });
+        }
+        catch (e) {
+            // ignore logging failures
+        }
+    }
     return md;
 }
