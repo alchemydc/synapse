@@ -40,12 +40,43 @@ const discourseCategoriesByNameLower: Record<string, CategoryMeta> = {}; // keye
 const discourseTopics: Record<number, TopicMeta> = {}; // keyed by topic id
 const discourseTopicsByTitleLower: Record<string, TopicMeta> = {}; // keyed by title.toLowerCase()
 
+/**
+ * Helper: create a simplified, ASCII-friendly lowercase name used for permissive lookups.
+ * Strips emoji/decorative characters and keeps letters, numbers, spaces, hyphen, underscore.
+ */
+function sanitizeNameForLookup(s?: string): string {
+  if (!s) return "";
+  try {
+    const normalized = String(s).normalize("NFKD");
+    try {
+      return normalized.replace(/[^\p{L}\p{N}\s\-_]/gu, "").trim().toLowerCase();
+    } catch {
+      return normalized.replace(/[^\w\s\-_]/g, "").trim().toLowerCase();
+    }
+  } catch {
+    return String(s).replace(/[^\w\s\-_]/g, "").trim().toLowerCase();
+  }
+}
+
 // Discord
 export function registerDiscordChannel(meta: ChannelMeta) {
   if (!meta || !meta.id) return;
   discordChannels[meta.id] = meta;
   if (meta.name) {
-    discordChannelsByNameLower[meta.name.toLowerCase()] = meta;
+    const nameLower = meta.name.toLowerCase();
+    discordChannelsByNameLower[nameLower] = meta;
+
+    // Index a sanitized variant so lookups like "general" match "🍀┊general" etc.
+    const sanitized = sanitizeNameForLookup(meta.name);
+    if (sanitized && sanitized !== nameLower) {
+      discordChannelsByNameLower[sanitized] = meta;
+    }
+
+    // Also index a "simple" variant removing leading non-alphanum characters (e.g., "┊zingo" -> "zingo")
+    const simple = nameLower.replace(/^[^a-z0-9]+/i, "").trim();
+    if (simple && simple !== nameLower && simple !== sanitized) {
+      discordChannelsByNameLower[simple] = meta;
+    }
   }
 }
 
