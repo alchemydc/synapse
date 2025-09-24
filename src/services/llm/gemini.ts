@@ -124,7 +124,7 @@ export async function summarize(messages: MessageDTO[], config: Config): Promise
   }
   logger.info("Gemini init", { model: config.GEMINI_MODEL, maxTokens: config.MAX_SUMMARY_TOKENS });
 
-  const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
+  const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY || "");
   const model: GenerativeModel = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
 
   // Truncate to fit token budget (roughly 4 chars per token)
@@ -155,7 +155,7 @@ export async function summarizeAttributed(clusters: TopicCluster[], config: Conf
   }
   logger.info("Gemini attributed init", { model: config.GEMINI_MODEL, maxTokens: config.MAX_SUMMARY_TOKENS });
 
-  const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY);
+  const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY || "");
   const model: GenerativeModel = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
 
   // Build prompt from clusters and truncate to token budget.

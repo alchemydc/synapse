@@ -15,10 +15,14 @@ export interface MessageDTO {
 }
 
 export async function fetchMessages(
-  token: string,
+  token: string | undefined,
   channelIds: string[],
   windowHours: number
 ): Promise<MessageDTO[]> {
+  if (!token) {
+    logger.error("DISCORD_TOKEN is required but missing");
+    throw new Error("DISCORD_TOKEN is required to fetch Discord messages");
+  }
   const client = new Client({
     intents: [
       GatewayIntentBits.Guilds,
@@ -27,7 +31,7 @@ export async function fetchMessages(
     ],
   });
 
-  await client.login(token);
+  await client.login(token!);
 
   const now = Date.now();
   const since = now - windowHours * 60 * 60 * 1000;

@@ -121,7 +121,7 @@ async function summarize(messages, config) {
         throw new Error("GEMINI_MODEL is required");
     }
     logger_1.logger.info("Gemini init", { model: config.GEMINI_MODEL, maxTokens: config.MAX_SUMMARY_TOKENS });
-    const genAI = new generative_ai_1.GoogleGenerativeAI(config.GEMINI_API_KEY);
+    const genAI = new generative_ai_1.GoogleGenerativeAI(config.GEMINI_API_KEY || "");
     const model = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
     // Truncate to fit token budget (roughly 4 chars per token)
     const maxChars = config.MAX_SUMMARY_TOKENS * 4;
@@ -146,7 +146,7 @@ async function summarizeAttributed(clusters, config) {
         throw new Error("GEMINI_MODEL is required");
     }
     logger_1.logger.info("Gemini attributed init", { model: config.GEMINI_MODEL, maxTokens: config.MAX_SUMMARY_TOKENS });
-    const genAI = new generative_ai_1.GoogleGenerativeAI(config.GEMINI_API_KEY);
+    const genAI = new generative_ai_1.GoogleGenerativeAI(config.GEMINI_API_KEY || "");
     const model = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
     // Build prompt from clusters and truncate to token budget.
     const maxChars = config.MAX_SUMMARY_TOKENS * 4;

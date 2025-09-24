@@ -14,11 +14,18 @@ export async function postDigest(text: string, config: Config): Promise<void> {
     return;
   }
 
+  // Ensure required Slack runtime values are present when not in DRY_RUN
+  if (!config.SLACK_BOT_TOKEN || !config.SLACK_CHANNEL_ID) {
+    logger.error("SLACK_BOT_TOKEN and SLACK_CHANNEL_ID are required to post to Slack");
+    throw new Error("Missing Slack credentials or channel id");
+  }
+ 
+
   if (config.LOG_LEVEL && config.LOG_LEVEL.toLowerCase() === "debug") {
     logger.debug("[DEBUG] Slack.postDigest.text", String(text).slice(0, 1200));
   }
 
-  const client = new WebClient(config.SLACK_BOT_TOKEN);
+  const client = new WebClient(config.SLACK_BOT_TOKEN!);
 
   let attempts = 0;
   while (attempts < 3) {
@@ -61,6 +68,13 @@ export async function postDigestBlocks(
     return;
   }
 
+  // Ensure required Slack runtime values are present when not in DRY_RUN
+  if (!config.SLACK_BOT_TOKEN || !config.SLACK_CHANNEL_ID) {
+    logger.error("SLACK_BOT_TOKEN and SLACK_CHANNEL_ID are required to post to Slack blocks");
+    throw new Error("Missing Slack credentials or channel id");
+  }
+ 
+
   if (config.LOG_LEVEL && config.LOG_LEVEL.toLowerCase() === "debug") {
     logger.debug("[DEBUG] Slack.postDigestBlocks.fallback", String(textFallback).slice(0, 1200));
     try {
@@ -74,7 +88,7 @@ export async function postDigestBlocks(
     }
   }
 
-  const client = new WebClient(config.SLACK_BOT_TOKEN);
+  const client = new WebClient(config.SLACK_BOT_TOKEN!);
 
   let attempts = 0;
   while (attempts < 3) {

@@ -13,6 +13,11 @@ async function postDigest(text, config) {
             "----------------------------------------");
         return;
     }
+    // Ensure required Slack runtime values are present when not in DRY_RUN
+    if (!config.SLACK_BOT_TOKEN || !config.SLACK_CHANNEL_ID) {
+        logger_1.logger.error("SLACK_BOT_TOKEN and SLACK_CHANNEL_ID are required to post to Slack");
+        throw new Error("Missing Slack credentials or channel id");
+    }
     if (config.LOG_LEVEL && config.LOG_LEVEL.toLowerCase() === "debug") {
         logger_1.logger.debug("[DEBUG] Slack.postDigest.text", String(text).slice(0, 1200));
     }
@@ -51,6 +56,11 @@ async function postDigestBlocks(blocks, textFallback, config) {
             String(textFallback).trim() + "\n" +
             "----------------------------------------");
         return;
+    }
+    // Ensure required Slack runtime values are present when not in DRY_RUN
+    if (!config.SLACK_BOT_TOKEN || !config.SLACK_CHANNEL_ID) {
+        logger_1.logger.error("SLACK_BOT_TOKEN and SLACK_CHANNEL_ID are required to post to Slack blocks");
+        throw new Error("Missing Slack credentials or channel id");
     }
     if (config.LOG_LEVEL && config.LOG_LEVEL.toLowerCase() === "debug") {
         logger_1.logger.debug("[DEBUG] Slack.postDigestBlocks.fallback", String(textFallback).slice(0, 1200));

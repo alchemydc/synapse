@@ -10,6 +10,10 @@ const p_retry_1 = __importDefault(require("p-retry"));
 const link_registry_1 = require("../../utils/link_registry");
 const logger_1 = require("../../utils/logger");
 async function fetchMessages(token, channelIds, windowHours) {
+    if (!token) {
+        logger_1.logger.error("DISCORD_TOKEN is required but missing");
+        throw new Error("DISCORD_TOKEN is required to fetch Discord messages");
+    }
     const client = new discord_js_1.Client({
         intents: [
             discord_js_1.GatewayIntentBits.Guilds,

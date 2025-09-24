@@ -31,11 +31,12 @@ const toStr = (v) => {
     return String(v);
 };
 const ConfigSchema = zod_1.z.object({
-    DISCORD_TOKEN: zod_1.z.string(),
-    DISCORD_CHANNELS: zod_1.z.string(),
-    SLACK_BOT_TOKEN: zod_1.z.string(),
-    SLACK_CHANNEL_ID: zod_1.z.string(),
-    GEMINI_API_KEY: zod_1.z.string(),
+    // Credentials and optional endpoints — mark optional unless necessary at runtime.
+    DISCORD_TOKEN: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
+    DISCORD_CHANNELS: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
+    SLACK_BOT_TOKEN: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
+    SLACK_CHANNEL_ID: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
+    GEMINI_API_KEY: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
     GEMINI_MODEL: zod_1.z.preprocess(toStr, zod_1.z.string()).default("gemini-1.5-flash"),
     MAX_SUMMARY_TOKENS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(128)).default(1024),
     DRY_RUN: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
@@ -48,9 +49,9 @@ const ConfigSchema = zod_1.z.object({
     TOPIC_GAP_MINUTES: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).default(20),
     MAX_TOPIC_PARTICIPANTS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).default(6),
     ATTRIBUTION_FALLBACK_ENABLED: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
-    // Per-source enable flags
-    ENABLE_DISCORD: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
-    ENABLE_DISCOURSE: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
+    // Per-source enable flags (keep defaults but allow explicit unset)
+    ENABLE_DISCORD: zod_1.z.preprocess(toBool, zod_1.z.boolean()).optional().default(true),
+    ENABLE_DISCOURSE: zod_1.z.preprocess(toBool, zod_1.z.boolean()).optional().default(true),
     LINKED_SOURCE_LABELS: zod_1.z.preprocess(toBool, zod_1.z.boolean()).optional(),
     // Discourse-related optional settings
     DISCOURSE_BASE_URL: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
@@ -71,7 +72,7 @@ function loadConfig() {
         throw new Error("Invalid config: " + JSON.stringify(parsed.error.format()));
     }
     const raw = parsed.data;
-    const configBaseChannels = raw.DISCORD_CHANNELS.split(",").map((id) => id.trim()).filter(Boolean);
+    const configBaseChannels = (raw.DISCORD_CHANNELS ?? "").split(",").map((id) => id.trim()).filter(Boolean);
     const discoBase = normalizeBaseUrl(raw.DISCOURSE_BASE_URL);
     const config = {
         ...raw,
