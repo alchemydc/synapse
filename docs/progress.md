@@ -1,63 +1,62 @@
 # progress.md
 
-## Current Status
-- Production unblocked; GEMINI_MODEL CI issue resolved via repo variable and build-before-start.
-- Daily digest running reliably with validated config and model logging.
-- Pipeline runs properly; DRY_RUN output renders links correctly, and live Slack posts now render Discord channel links and Discourse forum/topic links correctly (link-rendering bug fixed).
-- MVP operational end-to-end with Slack Block Kit digest, message filters, and prompt enrichment.
-- Pivot from n8n to TypeScript/Node.js decided due to license restrictions.
-- PRD for Node architecture drafted.
-- GitHub Actions workflow added for daily scheduled runs.
-- Zod config parsing fixed to apply defaults when envs are missing.
-- Memory bank updated to reflect recent implementation changes.
+## Snapshot (2025-09-25)
+This document captures the current implementation status and short-term plan for the Synapse digest pipeline.
 
-## What Works
-- Discord connectivity (guild/channel listing, pagination, filtering).
-- Discourse ingestion and normalization integrated into the ETL pipeline.
-- Configurable message filters via env.
-- Gemini summarization with truncation.
-- Slack posting with Block Kit payloads and mrkdwn normalization.
-- Enriched prompt with channel name and timestamp; structured sections.
-- Prompt wording updated to avoid redundant per-topic "Key Topics" subheading (improves digest readability).
-- DRY_RUN path for safe testing.
-- Formatting and configuration strategy.
-- Zod preprocessors for robust default handling.
-- Discourse debug tooling operational: `src/tools/discourse_debug.ts` validates Discourse API access and prints site metadata, sample topics, and rate-limit headers.
-- TypeScript build errors in the Discourse ingestion service were fixed.
+### High-level status
+- Core digest pipeline implemented and exercising both Discord and Discourse ingestion paths.
+- Per-source grouping and per-group summarization implemented; prompts updated to surface a "Shared Links" section.
+- Link registry and injection improved: permissive Discourse title matching and safer forum-label injection are implemented and covered by tests.
+- Slack Block Kit posting now guards against oversized payloads by chunking messages and capping fallback text.
+- Unit test suite passing locally (all unit tests green).
 
-## What’s Next
-- Modify summaries so that participants are noted per topic, not per key point bullet.
-- Ensure that links shared in discord messages and in forum posts are included in summaries (for high signal topics)
-- Continue Slack formatting polish for edge-case mrkdwn rendering and monitor Gemini 2.x link behavior.
-- Add support for pulling messages from multiple Discord servers.
-- Add unit tests for prompt injection and formatter edge-cases to prevent regressions.
-- Add documentation for deployment & memory bank updates (pending confirmation).
-- Explore semantic cluster refinement (topic_refine scaffold added; implementation pending).
-- Consider monitoring LLM prompt stability after attribution enabled (token cost, link rendering).
-- Scaffold model listing/validation utility and investigate alternate LLM models (e.g., gemini-2.x stabilization).
+## Completed work
+- Simplified clusterMessages to assume per-source, pre-sorted input.
+- Implemented per-source grouping and per-group summarization (src/main.ts).
+- Added per-group debug logging.
+- Implemented sanitized Discourse topic index and permissive lookup (src/utils/link_registry.ts).
+- Hardened forum link injection with safer lookup and debug logging (src/utils/source_link_inject.ts).
+- Added link injection tests (topics, id token, sanitized title, category) (test/unit/link_and_inject.test.ts).
+- Updated Gemini prompts to include a "Shared Links" instruction and adjusted prompt unit tests (src/services/llm/gemini.ts, test/unit/gemini_prompt.test.ts).
+- Implemented Slack Block Kit chunking & fallback truncation to avoid exceeding Slack limits (src/services/slack/index.ts).
+- Updated clustering tests to reflect new cluster behavior (test/unit/topics.test.ts).
 
-## Discourse Integration (status)
-- Discourse ingestion service implemented in `src/services/discourse/`:
-  - Fetches recent topics and initial posts within the digest window.
-  - Handles pagination and rate limits.
-  - Normalizes Discourse posts to the internal message model with fields: source, forum, category, topic_id, post_id, author, content, created_at.
-- Normalized Discourse messages are integrated into the main ETL flow and subject to existing filters and token-budget controls.
-- Formatter and LLM prompts include source attribution when available.
+## Current work / Next steps
+- Add unit tests specifically covering Slack chunking/truncation behavior (to prevent regressions).
+- Add optional runtime config knobs for grouping behavior:
+  - MAX_GROUPS
+  - MIN_GROUP_MESSAGES
+  - HYBRID_GROUPING_ENABLED
+- Create small, reviewable commits for Phase 1/Phase 2/Phase 3 changes and push when approved.
+- Update memory bank and docs to reflect the recent changes (this file is being updated now).
+- Add targeted tests for Discourse fuzzy lookup edge-cases and prompt/formatter edge-cases.
 
-## Known Issues
-- Remaining Slack mrkdwn edge-case formatting should be monitored and covered by unit tests.
-- Need rate-limit tuning for Discord at scale.
-- Env validation diagnostics and additional deployment docs pending.
-- Monitor Gemini 2.x link behavior for regressions.
+## Known issues / risks
+- Some Slack mrkdwn edge-cases remain and should be covered by tests.
+- Larger deployments may require rate-limit tuning for Discord and more aggressive chunking / batching policies.
+- Monitor LLM link rendering changes if moving to newer Gemini versions (2.x).
 
-## Decisions Log (recent)
-- 2025-08-29: Default model pinned to gemini-1.5-flash pending link rendering fix for Gemini 2.0.
-- 2025-08-29: GEMINI_MODEL moved to repo variable; added prestart build step and CI build-before-start.
-- 2025-08-29: Added sanitized config summary logs and Gemini model init logs.
-- 2025-08-29: Deployment docs updated to clarify GEMINI_MODEL is a repo variable.
-- 2025-08-29: Plan to validate model names and provide a model listing utility.
-- 2025-08-28: Pivot to Node due to n8n license constraints and flexibility needs.
-- 2025-09-12: Added `discourse_debug` script and .env scaffolding; adopting staged integration approach (debug → ingestion → normalization → attribution → formatter/prompt).
-- 2025-09-23: Adjusted Gemini prompt to avoid redundant per-topic "Key Topics" headings; updated unit test to match new prompt wording.
-- 2025-09-23: Fixed TypeScript issues in Discourse ingestion normalization (unused var removed; error typing clarified).
-- 2025-09-24: Slack link rendering bug fixed; Discourse ingestion implemented and integrated into ETL pipeline.
+## Decisions log (recent)
+- 2025-08-29: Default model pinned to gemini-1.5-flash pending link rendering investigation.
+- 2025-09-12: Adopt staged Discourse integration: debug → ingestion → normalization → attribution → formatter.
+- 2025-09-23: Avoid redundant per-topic "Key Topics" heading in prompts; update tests.
+- 2025-09-24: Fixed Slack link rendering & implemented permissive Discourse title matching.
+- 2025-09-25: Added Slack block chunking and fallback truncation to prevent oversized posts.
+
+## Implementation checklist
+- [x] Simplify clusterMessages (remove global sort & channel switch)
+- [x] Update/extend topics tests
+- [x] Refactor main.ts to per-source grouping + per-group summarize
+- [x] Add per-group debug logging
+- [ ] (Optional) Add config keys MAX_GROUPS / MIN_GROUP_MESSAGES / HYBRID_GROUPING_ENABLED
+- [ ] Commit Phase 1 changes (local commits recommended)
+- [x] Implement Discourse link sanitized index
+- [x] Add link injection tests (topics, id token, sanitized, category)
+- [x] Refactor forum regex in source_link_inject.ts (safer lookup + debug)
+- [ ] Commit Phase 2 changes
+- [x] Add “Shared Links” instruction to prompts
+- [x] Update gemini prompt tests (explicit assertions added)
+- [x] Implement Slack block chunking & fallback truncation
+- [ ] Add tests for Slack truncation/chunking
+- [ ] Commit Phase 3 changes
+- [ ] Update other docs & memory bank (this file updated)
