@@ -18,10 +18,14 @@ const UNKNOWN_AUTHOR = "unknown";
 function clusterMessages(messages, gapMinutes = 20) {
     if (!messages || messages.length === 0)
         return [];
-    // Sort by timestamp ascending to produce globally chronological clusters.
-    // This interleaves channels (Discord + Discourse) so the LLM sees time-ordered topics
-    // and prevents one source from consuming the token budget before others.
-    const sorted = [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    // NOTE: Caller should pass messages that belong to a single logical source
+    // (e.g., one Discord channel or one Discourse topic) and already be sorted
+    // chronologically ascending. This function now assumes pre-sorted input and
+    // only splits clusters by time gap. If caller cannot guarantee sorting,
+    // uncomment the local sort below.
+    //
+    // const sorted = [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    const sorted = messages;
     const clusters = [];
     let current = null;
     let id = 1;
@@ -41,10 +45,9 @@ function clusterMessages(messages, gapMinutes = 20) {
         }
         const lastMsg = current.messages[current.messages.length - 1];
         const lastTs = new Date(lastMsg.createdAt).getTime();
-        const channelChanged = msg.channelId !== current.channelId;
         const gapExceeded = ts - lastTs > gapMs;
-        if (channelChanged || gapExceeded) {
-            // finalize participants
+        if (gapExceeded) {
+            // finalize participants for the completed cluster
             current.participants = extractParticipants(current);
             clusters.push(current);
             current = {

@@ -29,6 +29,9 @@ describe("Gemini prompt builder", () => {
     expect(prompt).toContain(`[2] [chan2 @ ${d2} ${tz}] bar`);
     expect(prompt).toContain("Community Digest:");
     expect(prompt).toContain("Sections: Decisions, Action Items, Links.");
+    // Prompt now instructs the model to collect URLs under a Shared Links heading.
+    expect(prompt).toContain("Shared Links");
+    expect(prompt).toContain("If any messages contain URLs or links");
   });
 
   it("truncates messages to max chars", () => {

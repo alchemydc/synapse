@@ -39,6 +39,8 @@ const discourseCategoriesByNameLower: Record<string, CategoryMeta> = {}; // keye
 
 const discourseTopics: Record<number, TopicMeta> = {}; // keyed by topic id
 const discourseTopicsByTitleLower: Record<string, TopicMeta> = {}; // keyed by title.toLowerCase()
+// Additional index: sanitized title -> TopicMeta for permissive lookups
+const discourseTopicsBySanitizedLower: Record<string, TopicMeta> = {};
 
 /**
  * Helper: create a simplified, ASCII-friendly lowercase name used for permissive lookups.
@@ -49,12 +51,13 @@ function sanitizeNameForLookup(s?: string): string {
   try {
     const normalized = String(s).normalize("NFKD");
     try {
-      return normalized.replace(/[^\p{L}\p{N}\s\-_]/gu, "").trim().toLowerCase();
+      // collapse multiple whitespace to single space after removing unwanted chars
+      return normalized.replace(/[^\p{L}\p{N}\s\-_]/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
     } catch {
-      return normalized.replace(/[^\w\s\-_]/g, "").trim().toLowerCase();
+      return normalized.replace(/[^\w\s\-_]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
     }
   } catch {
-    return String(s).replace(/[^\w\s\-_]/g, "").trim().toLowerCase();
+    return String(s).replace(/[^\w\s\-_]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
   }
 }
 
@@ -114,7 +117,14 @@ export function registerDiscourseTopic(meta: TopicMeta) {
   if (!meta || typeof meta.id === "undefined") return;
   discourseTopics[meta.id] = meta;
   if (meta.title) {
-    discourseTopicsByTitleLower[meta.title.toLowerCase()] = meta;
+    const titleLower = meta.title.toLowerCase();
+    discourseTopicsByTitleLower[titleLower] = meta;
+
+    // Also index a sanitized variant for permissive lookups
+    const sanitized = sanitizeNameForLookup(meta.title);
+    if (sanitized && sanitized !== titleLower) {
+      discourseTopicsBySanitizedLower[sanitized] = meta;
+    }
   }
 }
 
@@ -126,6 +136,13 @@ export function getDiscourseTopicById(id?: number): TopicMeta | undefined {
 export function getDiscourseTopicByTitle(title?: string): TopicMeta | undefined {
   if (!title) return undefined;
   return discourseTopicsByTitleLower[title.toLowerCase()];
+}
+
+export function getDiscourseTopicBySanitizedName(name?: string): TopicMeta | undefined {
+  if (!name) return undefined;
+  const s = sanitizeNameForLookup(name);
+  if (!s) return undefined;
+  return discourseTopicsBySanitizedLower[s];
 }
 
 // Utility: try best-effort lookup by label text in bracketed labels.
@@ -142,7 +159,14 @@ export function lookupDiscourseCategoryByLabel(labelText: string): CategoryMeta 
 }
 
 export function lookupDiscourseTopicByLabel(labelText: string): TopicMeta | undefined {
-  return getDiscourseTopicByTitle(labelText.trim().toLowerCase());
+  const raw = labelText.trim();
+  // try exact title match first
+  const exact = getDiscourseTopicByTitle(raw);
+  if (exact) return exact;
+  // fallback to sanitized lookup
+  const sanitized = getDiscourseTopicBySanitizedName(raw);
+  if (sanitized) return sanitized;
+  return undefined;
 }
 
 /**

@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -66,45 +99,77 @@ async function run() {
     else {
         logger_1.logger.info("Discourse disabled (incomplete credentials).");
     }
-    // Reuse existing filters by mapping NormalizedMessage -> Discord-like MessageDTO shape
-    // Also inject a stable source label into channelId so clusters and prompts retain source info.
-    const candidateMessages = normalizedAll.map((m) => {
-        const sourceLabel = (0, source_labels_1.formatSourceLabel)({
-            source: m.source,
-            channelId: m.channelId,
-            forum: m.forum,
-            categoryId: m.categoryId,
+    // Group messages by source identifier (Discord channel or Discourse topic).
+    // For Discord use channelId; for Discourse use a stable `disc-topic-<id>` key.
+    const messagesBySource = new Map();
+    for (const m of normalizedAll) {
+        const sourceId = m.source === "discord" ? m.channelId : m.topicId ? `disc-topic-${m.topicId}` : m.channelId;
+        if (!messagesBySource.has(sourceId)) {
+            messagesBySource.set(sourceId, []);
+        }
+        messagesBySource.get(sourceId).push(m);
+    }
+    logger_1.logger.info(`Found ${messagesBySource.size} message groups by source.`);
+    const allSummaries = [];
+    let totalFiltered = 0;
+    let totalSummarizedGroups = 0;
+    // Process each group independently: filter, (optional) cluster, summarize
+    for (const [sourceId, group] of messagesBySource.entries()) {
+        // Map to candidateMessages shape and inject source label into channelId
+        const candidateGroup = group.map((m) => {
+            const sourceLabel = (0, source_labels_1.formatSourceLabel)({
+                source: m.source,
+                channelId: m.channelId,
+                forum: m.forum,
+                categoryId: m.categoryId,
+            });
+            return {
+                id: m.id,
+                channelId: `${sourceLabel} ${m.channelId || ""}`.trim(),
+                author: m.author,
+                content: m.content,
+                createdAt: m.createdAt,
+                url: m.url,
+            };
         });
-        return {
-            id: m.id,
-            // Preface channelId with the bracketed source label so downstream clustering and prompts include it.
-            channelId: `${sourceLabel} ${m.channelId || ""}`.trim(),
-            author: m.author,
-            content: m.content,
-            createdAt: m.createdAt,
-            url: m.url,
-        };
-    });
-    logger_1.logger.info("Applying filters...");
-    const filteredMessages = (0, filters_1.applyMessageFilters)(candidateMessages, config);
-    logger_1.logger.info(`Filtered to ${filteredMessages.length} messages.`);
-    logger_1.logger.info("Summarizing messages...");
-    let summary;
-    let clusters = [];
-    if (config.ATTRIBUTION_ENABLED) {
-        logger_1.logger.info("Attribution enabled — building topic clusters...");
-        clusters = (0, topics_1.clusterMessages)(filteredMessages, config.TOPIC_GAP_MINUTES);
-        logger_1.logger.info(`Built ${clusters.length} topic clusters for attribution.`);
-        summary = await (0, gemini_1.summarizeAttributed)(clusters, config);
-        if (config.ATTRIBUTION_FALLBACK_ENABLED) {
-            logger_1.logger.info("Attribution fallback enabled — injecting missing participant lines if needed...");
-            summary = (0, participants_fallback_1.default)(summary, clusters, config.MAX_TOPIC_PARTICIPANTS);
+        // Ensure chronological order for clustering assumptions
+        candidateGroup.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        // Apply existing filters to this group's messages
+        const filteredGroup = (0, filters_1.applyMessageFilters)(candidateGroup, config);
+        if (!filteredGroup || filteredGroup.length === 0) {
+            if (isDebug)
+                logger_1.logger.debug("Skipping group with no messages after filters", { sourceId });
+            continue;
+        }
+        totalFiltered += filteredGroup.length;
+        // Summarize per-group (attributed or not)
+        let groupSummary = "";
+        if (config.ATTRIBUTION_ENABLED) {
+            if (isDebug)
+                logger_1.logger.debug("Attribution enabled for group", { sourceId, count: filteredGroup.length });
+            const clustersForGroup = (0, topics_1.clusterMessages)(filteredGroup, config.TOPIC_GAP_MINUTES);
+            if (isDebug)
+                logger_1.logger.debug("Built clusters for group", { sourceId, clusterCount: clustersForGroup.length });
+            groupSummary = await (0, gemini_1.summarizeAttributed)(clustersForGroup, config);
+            if (config.ATTRIBUTION_FALLBACK_ENABLED) {
+                if (isDebug)
+                    logger_1.logger.debug("Applying attribution fallback for group", { sourceId });
+                groupSummary = (0, participants_fallback_1.default)(groupSummary, clustersForGroup, config.MAX_TOPIC_PARTICIPANTS);
+            }
+        }
+        else {
+            groupSummary = await (0, gemini_1.summarize)(filteredGroup, config);
+        }
+        if (groupSummary && groupSummary.trim().length > 0) {
+            allSummaries.push(groupSummary);
+            totalSummarizedGroups++;
         }
     }
-    else {
-        summary = await (0, gemini_1.summarize)(filteredMessages, config);
-    }
+    // Combine all per-source summaries into one digest
+    let summary = allSummaries.join("\n\n---\n\n");
     if (isDebug) {
+        logger_1.logger.debug("[DEBUG] total.groups.summarized", totalSummarizedGroups);
+        logger_1.logger.debug("[DEBUG] total.filtered.messages", totalFiltered);
         logger_1.logger.debug("[DEBUG] summary.raw.len", summary.length);
         logger_1.logger.debug("[DEBUG] summary.raw.preview", summary.slice(0, 1200));
     }
@@ -115,13 +180,18 @@ async function run() {
     const { start, end, dateTitle } = (0, time_1.getUtcDailyWindowFrom)(candidate);
     // Inject links into the LLM-generated summary where registry metadata exists (configurable).
     const linkedSummary = config.LINKED_SOURCE_LABELS === false ? summary : (0, source_link_inject_1.injectSourceLinks)(summary);
+    // Sanitize and dedupe LLM output before formatting for Slack
+    const sanitize = (await Promise.resolve().then(() => __importStar(require("./utils/llm_sanitize")))).sanitizeLLMOutput;
+    const dedupe = (await Promise.resolve().then(() => __importStar(require("./utils/participants_dedupe")))).collapseDuplicateParticipants;
+    let cleaned = sanitize(linkedSummary);
+    cleaned = dedupe(cleaned);
     const blocks = (0, format_1.buildDigestBlocks)({
-        summary: linkedSummary,
+        summary: cleaned,
         start,
         end,
         dateTitle,
     });
-    const fallback = (0, format_1.formatDigest)(linkedSummary);
+    const fallback = (0, format_1.formatDigest)(cleaned);
     logger_1.logger.info("Posting digest to Slack...");
     await (0, slack_1.postDigestBlocks)(blocks, fallback, config);
     logger_1.logger.info("Pipeline complete.");

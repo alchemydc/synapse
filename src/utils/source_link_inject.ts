@@ -96,21 +96,43 @@ export function injectSourceLinks(md: string): string {
 
   // Forum topic: [Forum topic:Some title] — also handle if LLM preserved a following disc-topic-<id>
   md = md.replace(/\[Forum\s+topic:([^\]]+)\](?:\s+(disc-topic-(\d+)))?/g, (_m: string, title: string, discToken?: string, topicIdStr?: string) => {
-    // If a disc-topic-N token followed, prefer direct id lookup
-    if (topicIdStr) {
-      const tid = Number(topicIdStr);
-      const tMeta = getDiscourseTopicById(tid);
-      if (tMeta && tMeta.url) {
-        const visible = `topic: ${sanitizeVisible(tMeta.title) || `topic-${tid}`}`;
-        return `[Forum <${tMeta.url}|${visible}>]`;
+    try {
+      // If a disc-topic-N token followed, prefer direct id lookup
+      if (topicIdStr) {
+        const tid = Number(topicIdStr);
+        const tMeta = getDiscourseTopicById(tid);
+        if (tMeta && tMeta.url) {
+          // Use the registered topic title verbatim for visible text (preserve emoji/punctuation)
+          const visibleTitle = tMeta.title || `topic-${tid}`;
+          if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+            logger.debug("[DEBUG] injectSourceLinks.forumTopic (byId)", { title, discToken, topicId: tid, url: tMeta.url });
+          }
+          return `[Forum <${tMeta.url}|${visibleTitle}>]`;
+        }
       }
+
+      const meta = lookupDiscourseTopicByLabel(title);
+      if (meta && meta.url) {
+        // Prefer the registered title verbatim so emoji/punctuation are preserved in Slack visible text
+        const visibleTitle = meta.title || title;
+        if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+          logger.debug("[DEBUG] injectSourceLinks.forumTopic (byLabel)", { title, discToken, matchedTitle: meta.title, url: meta.url });
+        }
+        return `[Forum <${meta.url}|${visibleTitle}>]`;
+      }
+
+      if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+        logger.debug("[DEBUG] injectSourceLinks.forumTopic.notFound", { title, discToken });
+      }
+    } catch (e) {
+      // ignore and fallthrough to leaving original label
+      try {
+        if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+          logger.debug("[DEBUG] injectSourceLinks.forumTopic.error", { title, discToken, error: (e as any)?.message || e });
+        }
+      } catch {}
     }
-    const meta = lookupDiscourseTopicByLabel(title);
-    if (meta && meta.url) {
-      const visible = `topic: ${sanitizeVisible(meta.title) || title}`;
-      return `[Forum <${meta.url}|${visible}>]`;
-    }
-    return `[Forum topic:${title}]${discToken ? " " + discToken : ""}`;
+    return `[Forum ${title}]${discToken ? " " + discToken : ""}`;
   });
 
   // Forum category: [Forum category:some-name] — if followed by disc-topic-N, try linking to the topic instead
@@ -119,16 +141,49 @@ export function injectSourceLinks(md: string): string {
       const tid = Number(topicIdStr);
       const tMeta = getDiscourseTopicById(tid);
       if (tMeta && tMeta.url) {
-        const visible = `topic: ${sanitizeVisible(tMeta.title) || `topic-${tid}`}`;
-        return `[Forum <${tMeta.url}|${visible}>]`;
+        const visibleTitle = sanitizeVisible(tMeta.title) || `topic-${tid}`;
+        return `[Forum <${tMeta.url}|${visibleTitle}>]`;
       }
     }
     const meta = lookupDiscourseCategoryByLabel(label);
     if (meta && meta.url) {
-      const visible = `category: ${sanitizeVisible(meta.name) || label}`;
+      const visible = sanitizeVisible(meta.name) || label;
       return `[Forum <${meta.url}|${visible}>]`;
     }
-    return `[Forum category:${label}]${discToken ? " " + discToken : ""}`;
+    return `[Forum ${label}]${discToken ? " " + discToken : ""}`;
+  });
+
+  // Fallback: handle plain `[Forum Title]` labels (no `topic:` or `category:` token).
+  // This lets formatSourceLabel emit `[Forum My Title]` while still allowing link injection.
+  md = md.replace(/\[Forum\s+([^\]]+)\](?:\s+(disc-topic-(\d+)))?/g, (_m: string, label: string, discToken?: string, topicIdStr?: string) => {
+    try {
+      // prefer explicit disc-topic token if present
+      if (topicIdStr) {
+        const tid = Number(topicIdStr);
+        const tMeta = getDiscourseTopicById(tid);
+        if (tMeta && tMeta.url) {
+          const visibleTitle = tMeta.title || `topic-${tid}`;
+          return `[Forum <${tMeta.url}|${visibleTitle}>]${discToken ? " " + discToken : ""}`;
+        }
+      }
+
+      // try topic lookup by label first
+      const topicMeta = lookupDiscourseTopicByLabel(label);
+      if (topicMeta && topicMeta.url) {
+        const visibleTitle = topicMeta.title || label;
+        return `[Forum <${topicMeta.url}|${visibleTitle}>]${discToken ? " " + discToken : ""}`;
+      }
+
+      // then try category lookup
+      const catMeta = lookupDiscourseCategoryByLabel(label);
+      if (catMeta && catMeta.url) {
+        const visibleCat = sanitizeVisible(catMeta.name) || label;
+        return `[Forum <${catMeta.url}|${visibleCat}>]${discToken ? " " + discToken : ""}`;
+      }
+    } catch (e) {
+      // on error, fallthrough and leave original label
+    }
+    return `[Forum ${label}]${discToken ? " " + discToken : ""}`;
   });
 
   if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {

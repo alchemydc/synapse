@@ -30,7 +30,7 @@ function formatSourceLabel(msg) {
             const tMeta = (0, link_registry_1.getDiscourseTopicById)(Number(tid));
             const title = tMeta?.title ?? msg.channelName ?? `topic-${tid}`;
             const safeTitle = String(title).replace(/\s+/g, " ").replace(/\n+/g, " ").trim().slice(0, 60);
-            return `[Forum topic:${safeTitle}]`;
+            return `[Forum: ${safeTitle}]`;
         }
         const cid = msg.categoryId;
         if (typeof cid !== "undefined" && cid !== null) {
