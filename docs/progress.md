@@ -6,57 +6,42 @@ This document captures the current implementation status and short-term plan for
 ### High-level status
 - Core digest pipeline implemented and exercising both Discord and Discourse ingestion paths.
 - Per-source grouping and per-group summarization implemented; prompts updated to surface a "Shared Links" section.
-- Link registry and injection improved: permissive Discourse title matching and safer forum-label injection are implemented and covered by tests.
+- Link registry and injection improved: permissive Discourse title matching and safer forum-label injection implemented and covered by tests.
 - Slack Block Kit posting now guards against oversized payloads by chunking messages and capping fallback text.
 - Unit test suite passing locally (all unit tests green).
 
-## Completed work
-- Simplified clusterMessages to assume per-source, pre-sorted input.
-- Implemented per-source grouping and per-group summarization (src/main.ts).
-- Added per-group debug logging.
-- Implemented sanitized Discourse topic index and permissive lookup (src/utils/link_registry.ts).
-- Hardened forum link injection with safer lookup and debug logging (src/utils/source_link_inject.ts).
-- Added link injection tests (topics, id token, sanitized title, category) (test/unit/link_and_inject.test.ts).
-- Updated Gemini prompts to include a "Shared Links" instruction and adjusted prompt unit tests (src/services/llm/gemini.ts, test/unit/gemini_prompt.test.ts).
-- Implemented Slack Block Kit chunking & fallback truncation to avoid exceeding Slack limits (src/services/slack/index.ts).
-- Updated clustering tests to reflect new cluster behavior (test/unit/topics.test.ts).
+## Completed work (new entries)
+- Implemented safer Block Kit section splitting in `src/utils/format.ts` to avoid the legacy single-section 2800-char truncation that caused Discourse summaries to be lost in Slack posts.
+  - Splitting strategy: split on legacy '---' groups, then by paragraphs, then soft-split very large blobs at paragraph boundaries.
+  - Preserves a leading "*Summary*" label on the first section and renders trailing "Participants" as context blocks.
+  - Introduced environment knob `SECTION_CHAR_LIMIT` (default 2800) to tune per-section safety.
+- Added targeted unit tests: `test/unit/format_block_split.test.ts` covering:
+  - Legacy '---' group splitting and Summary label preservation.
+  - Soft-splitting very large blobs so per-section content remains under SECTION_CHAR_LIMIT.
+  - Paragraph-splitting and preservation of trailing Participants context blocks.
+- Fixed TypeScript issues surfaced during refactor and validated changes.
+- All unit tests pass locally: 53/53.
 
 ## Current work / Next steps
-- Add unit tests specifically covering Slack chunking/truncation behavior (to prevent regressions).
-- Add optional runtime config knobs for grouping behavior:
-  - MAX_GROUPS
-  - MIN_GROUP_MESSAGES
-  - HYBRID_GROUPING_ENABLED
-- Create small, reviewable commits for Phase 1/Phase 2/Phase 3 changes and push when approved.
-- Update memory bank and docs to reflect the recent changes (this file is being updated now).
-- Add targeted tests for Discourse fuzzy lookup edge-cases and prompt/formatter edge-cases.
+- Monitor Slack rendering in staging runs (DRY_RUN preview then live) to confirm link rendering and multi-part posting behavior in real Slack channels.
+- Add optional runtime knobs and documentation for SECTION_CHAR_LIMIT (docs/README and deployment docs).
+- Consider adding a brief CI smoke test that runs a DRY_RUN with a large synthetic digest to catch regressions in formatting.
+- Continue Slack mrkdwn edge-case polishing and add tests for specific mrkdwn edge cases uncovered by staging.
 
 ## Known issues / risks
-- Some Slack mrkdwn edge-cases remain and should be covered by tests.
-- Larger deployments may require rate-limit tuning for Discord and more aggressive chunking / batching policies.
-- Monitor LLM link rendering changes if moving to newer Gemini versions (2.x).
+- Excessive numbers of topics could still generate many blocks; `postDigestBlocks` will chunk messages into multiple Slack posts (already implemented) but watch for rate limits or Block Kit size limits in extreme cases.
+- LLM output shape changes could reduce the effectiveness of the heuristics; keep prompt/formatter tests in sync.
 
-## Decisions log (recent)
-- 2025-08-29: Default model pinned to gemini-1.5-flash pending link rendering investigation.
-- 2025-09-12: Adopt staged Discourse integration: debug → ingestion → normalization → attribution → formatter.
-- 2025-09-23: Avoid redundant per-topic "Key Topics" heading in prompts; update tests.
-- 2025-09-24: Fixed Slack link rendering & implemented permissive Discourse title matching.
-- 2025-09-25: Added Slack block chunking and fallback truncation to prevent oversized posts.
-
-## Implementation checklist
+## Implementation checklist (updated)
 - [x] Simplify clusterMessages (remove global sort & channel switch)
 - [x] Update/extend topics tests
 - [x] Refactor main.ts to per-source grouping + per-group summarize
 - [x] Add per-group debug logging
-- [ ] (Optional) Add config keys MAX_GROUPS / MIN_GROUP_MESSAGES / HYBRID_GROUPING_ENABLED
-- [ ] Commit Phase 1 changes (local commits recommended)
-- [x] Implement Discourse link sanitized index
-- [x] Add link injection tests (topics, id token, sanitized, category)
-- [x] Refactor forum regex in source_link_inject.ts (safer lookup + debug)
-- [ ] Commit Phase 2 changes
-- [x] Add “Shared Links” instruction to prompts
-- [x] Update gemini prompt tests (explicit assertions added)
-- [x] Implement Slack block chunking & fallback truncation
-- [ ] Add tests for Slack truncation/chunking
-- [ ] Commit Phase 3 changes
-- [ ] Update other docs & memory bank (this file updated)
+- [x] Add block-splitting logic to buildDigestBlocks (src/utils/format.ts)
+- [x] Add targeted tests for block splitting/truncation (test/unit/format_block_split.test.ts)
+- [x] Fix TypeScript and test failures from refactor
+- [x] Run full unit test suite (local verification)
+- [ ] Add SECTION_CHAR_LIMIT doc & CI smoke test
+- [ ] Monitor staging DRY_RUN & live run results
+- [ ] Update deployment notes / Dockerfile as needed
+- [ ] Consider CI gating for formatting regressions

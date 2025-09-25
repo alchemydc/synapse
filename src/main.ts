@@ -157,13 +157,19 @@ async function run() {
   // Inject links into the LLM-generated summary where registry metadata exists (configurable).
   const linkedSummary = config.LINKED_SOURCE_LABELS === false ? summary : injectSourceLinks(summary);
 
+  // Sanitize and dedupe LLM output before formatting for Slack
+  const sanitize = (await import("./utils/llm_sanitize")).sanitizeLLMOutput;
+  const dedupe = (await import("./utils/participants_dedupe")).collapseDuplicateParticipants;
+  let cleaned = sanitize(linkedSummary);
+  cleaned = dedupe(cleaned);
+
   const blocks = buildDigestBlocks({
-    summary: linkedSummary,
+    summary: cleaned,
     start,
     end,
     dateTitle,
   });
-  const fallback = formatDigest(linkedSummary);
+  const fallback = formatDigest(cleaned);
 
   logger.info("Posting digest to Slack...");
   await postDigestBlocks(blocks, fallback, config);

@@ -36,7 +36,7 @@ export function formatSourceLabel(msg: {
       const tMeta = getDiscourseTopicById(Number(tid));
       const title = tMeta?.title ?? msg.channelName ?? `topic-${tid}`;
       const safeTitle = String(title).replace(/\s+/g, " ").replace(/\n+/g, " ").trim().slice(0, 60);
-      return `[Forum topic:${safeTitle}]`;
+      return `[Forum ${safeTitle}]`;
     }
 
     const cid = msg.categoryId;
@@ -44,7 +44,7 @@ export function formatSourceLabel(msg: {
       const cMeta = getDiscourseCategoryById(Number(cid));
       const cname = cMeta?.name ?? msg.channelName ?? `category:${cid}`;
       const safeCat = String(cname).replace(/\s+/g, "-").replace(/[^\w-]/g, "").slice(0, 40);
-      return `[Forum category:${safeCat}]`;
+      return `[Forum ${safeCat}]`;
     }
 
     if (msg.forum) {

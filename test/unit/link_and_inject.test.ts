@@ -102,7 +102,7 @@ describe("injectSourceLinks integration", () => {
 
     const md = "[Forum topic:My Awesome Topic] Topic heading\n\nContent";
     const out = injectSourceLinks(md);
-    expect(out).toContain("[Forum <https://forum.example.org/t/my-awesome-topic/300|topic: My Awesome Topic>]");
+    expect(out).toContain("[Forum <https://forum.example.org/t/my-awesome-topic/300|My Awesome Topic>]");
   });
 
   it("prefers disc-topic-<id> token when present", () => {
@@ -115,7 +115,7 @@ describe("injectSourceLinks integration", () => {
 
     const md = "[Forum topic:Other Topic] disc-topic-301";
     const out = injectSourceLinks(md);
-    expect(out).toContain("[Forum <https://forum.example.org/t/other-topic/301|topic: Other Topic>]");
+    expect(out).toContain("[Forum <https://forum.example.org/t/other-topic/301|Other Topic>]");
   });
 
   it("sanitized title match links when LLM altered punctuation or emoji", () => {
@@ -129,7 +129,7 @@ describe("injectSourceLinks integration", () => {
     // LLM may output a cleaned title without emoji or punctuation
     const md = "[Forum topic:Launch Notes] Topic heading";
     const out = injectSourceLinks(md);
-    expect(out).toContain("[Forum <https://forum.example.org/t/launch-notes/302|topic: 🚀 Launch — Notes>]");
+    expect(out).toContain("[Forum <https://forum.example.org/t/launch-notes/302|🚀 Launch — Notes>]");
   });
 
   it("links category when category registered", () => {
@@ -143,7 +143,7 @@ describe("injectSourceLinks integration", () => {
 
     const md = "[Forum category:Announcements] Some heading";
     const out = injectSourceLinks(md);
-    expect(out).toContain("[Forum <https://forum.example.org/c/announcements/5|category: Announcements>]");
+    expect(out).toContain("[Forum <https://forum.example.org/c/announcements/5|Announcements>]");
   });
 
   it("prefers topic link when disc-topic token follows a category label", () => {
@@ -163,6 +163,6 @@ describe("injectSourceLinks integration", () => {
 
     const md = "[Forum category:CategoryTopic] disc-topic-6";
     const out = injectSourceLinks(md);
-    expect(out).toContain("[Forum <https://forum.example.org/t/category-topic/6|topic: Category Topic>]");
+    expect(out).toContain("[Forum <https://forum.example.org/t/category-topic/6|Category Topic>]");
   });
 });

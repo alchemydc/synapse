@@ -21,17 +21,31 @@ function formatMessageLine(msg: MessageDTO): string {
 }
 
 function buildPrompt(messages: MessageDTO[]): string {
-  return [
-    "Community Digest:",
-    "Summarize the following Discord messages. For each section, produce concise bullets.",
-    "Sections: Decisions, Action Items, Links. For each topic, start with a single title line and then concise bullets; do not add a separate 'Key Topics' heading.",
-    "If any messages contain URLs or links, extract them and list them under a 'Shared Links' heading for that topic.",
-    "Preserve any leading bracketed source labels (e.g. [Discord #channel], [Forum category]) exactly as provided. Treat the first pair of square brackets at the start of each message as immutable: do not remove, reword, translate, sanitize, expand, or alter the text inside them (including emojis or decorative characters). If you cannot summarize while keeping those labels unchanged, keep them unchanged and continue the summary.",
-    "",
-    ...messages.map((m, i) => `[${i + 1}] ${formatMessageLine(m)}`),
-    "",
-    "Digest:",
-  ].join("\n");
+  // Build a concise, instruction-forward prompt and include strict output rules
+  const parts: string[] = [];
+
+  parts.push("Community Digest:");
+  parts.push("Summarize the following Discord messages. For each topic produce concise bullets.");
+  parts.push("Sections: Decisions, Action Items, Links.");
+  parts.push("Sections (when present): Decisions, Action Items, Links. Start each topic with a single title line; do not emit a separate 'Key Topics' heading.");
+  parts.push("If any messages contain URLs or links, extract them and list them under a 'Shared Links' heading for that topic.");
+  parts.push(
+    "Preserve any leading bracketed source labels (e.g. [Discord #channel], [Forum category]) exactly as provided. Treat the first pair of square brackets at the start of each message as immutable."
+  );
+  parts.push("");
+  parts.push(...messages.map((m, i) => `[${i + 1}] ${formatMessageLine(m)}`));
+  parts.push("");
+  // Delimit input end and instruct the model to only emit digest output
+  parts.push("=== INPUT END ===");
+  parts.push("Produce digest now.");
+  parts.push("STRICT OUTPUT RULES:");
+  parts.push("- OUTPUT ONLY the digest content. Do NOT output acknowledgements, confirmations, or any commentary.");
+  parts.push("- Do NOT restate instructions, do NOT say 'I understand' or similar phrases.");
+  parts.push("- Do NOT indicate that input was truncated or that you are waiting for more input.");
+  parts.push("BEGIN DIGEST:");
+  parts.push("");
+
+  return parts.join("\n");
 }
 
 /**
@@ -43,12 +57,14 @@ function buildAttributedPrompt(clusters: TopicCluster[], config: Config): string
   const parts: string[] = [];
 
   parts.push("Community Digest (Attributed):");
-  parts.push("Summarize the following topic clusters derived from Discord messages.");
-  parts.push("For each topic, produce concise bullets. If there are Decisions, Action Items, or Links, label those sections accordingly. Start each topic with a single title line; do not include an extra 'Key Topics' heading.");
+  parts.push("Summarize the following topic clusters derived from Discord and forum messages.");
+  parts.push(
+    "For each topic, produce concise bullets. If there are Decisions, Action Items, or Links, label those sections accordingly. Start each topic with a single title line; do not include an extra 'Key Topics' heading."
+  );
   parts.push("If any messages contain URLs or links, extract them and list them under a 'Shared Links' heading for that topic.");
-  parts.push("When generating each topic heading, preserve the leading bracketed source label exactly as provided (e.g., [Discord #channel], [Forum category]). Treat the first pair of square brackets at the start of the heading as immutable: do not remove, reword, translate, sanitize, expand, or alter the text inside them (including emojis or decorative characters). If you cannot summarize while keeping those labels unchanged, keep them unchanged and continue the summary.");
-  parts.push("For any bullet derived from a topic, include a trailing 'Participants: name1, name2' line listing the participants involved in that topic.");
-  parts.push("Do not invent participants not listed below. Use the exact participant names provided.");
+  parts.push(
+    "When generating each topic heading, preserve the leading bracketed source label exactly as provided (e.g., [Discord #channel], [Forum category]). Treat the first pair of square brackets at the start of the heading as immutable."
+  );
   parts.push("");
   parts.push("Input topics (chronological):");
   parts.push("");
@@ -65,7 +81,15 @@ function buildAttributedPrompt(clusters: TopicCluster[], config: Config): string
     parts.push(""); // spacer between topics
   }
 
-  parts.push("Digest:");
+  // Instruct the model to emit exactly one Participants line per topic block
+  parts.push("=== INPUT END ===");
+  parts.push("Produce digest now.");
+  parts.push("STRICT OUTPUT RULES:");
+  parts.push("- For each topic, after the bullets, output EXACTLY ONE line: 'Participants: name1, name2' (omit if none).");
+  parts.push("- Do NOT repeat 'Participants' lines after each bullet or per-bullet; only one per topic.");
+  parts.push("- OUTPUT ONLY the digest content. No acknowledgements, no explanations, no meta commentary.");
+  parts.push("- Do NOT invent participants.");
+  parts.push("BEGIN DIGEST:");
   parts.push("");
   parts.push(`Notes: Limit output to concise bullets. If a topic contains no substantive content, omit it. Max summary token budget: ${config.MAX_SUMMARY_TOKENS}.`);
 
@@ -76,9 +100,9 @@ function truncateMessages(messages: MessageDTO[], maxChars: number): MessageDTO[
   let total = 0;
   const out: MessageDTO[] = [];
   for (const m of messages) {
-    if (total + m.content.length > maxChars) break;
+    if (total + (m.content ? m.content.length : 0) > maxChars) break;
     out.push(m);
-    total += m.content.length;
+    total += m.content ? m.content.length : 0;
   }
   return out;
 }
@@ -161,7 +185,7 @@ export async function summarize(messages: MessageDTO[], config: Config): Promise
 
 /**
  * summarizeAttributed - accepts topic clusters (with participants) and asks the LLM
- * to include Participants lines per topic-derived bullet.
+ * to include Participants lines per topic-derived block.
  */
 export async function summarizeAttributed(clusters: TopicCluster[], config: Config): Promise<string> {
   if (!config.GEMINI_MODEL || config.GEMINI_MODEL.trim() === "") {

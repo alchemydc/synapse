@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -147,13 +180,18 @@ async function run() {
     const { start, end, dateTitle } = (0, time_1.getUtcDailyWindowFrom)(candidate);
     // Inject links into the LLM-generated summary where registry metadata exists (configurable).
     const linkedSummary = config.LINKED_SOURCE_LABELS === false ? summary : (0, source_link_inject_1.injectSourceLinks)(summary);
+    // Sanitize and dedupe LLM output before formatting for Slack
+    const sanitize = (await Promise.resolve().then(() => __importStar(require("./utils/llm_sanitize")))).sanitizeLLMOutput;
+    const dedupe = (await Promise.resolve().then(() => __importStar(require("./utils/participants_dedupe")))).collapseDuplicateParticipants;
+    let cleaned = sanitize(linkedSummary);
+    cleaned = dedupe(cleaned);
     const blocks = (0, format_1.buildDigestBlocks)({
-        summary: linkedSummary,
+        summary: cleaned,
         start,
         end,
         dateTitle,
     });
-    const fallback = (0, format_1.formatDigest)(linkedSummary);
+    const fallback = (0, format_1.formatDigest)(cleaned);
     logger_1.logger.info("Posting digest to Slack...");
     await (0, slack_1.postDigestBlocks)(blocks, fallback, config);
     logger_1.logger.info("Pipeline complete.");
