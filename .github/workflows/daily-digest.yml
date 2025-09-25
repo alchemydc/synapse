@@ -31,6 +31,10 @@ jobs:
         run: npm run build
       - name: Run digest bot
         env:
+          DRY_RUN: ${{ vars.DRY_RUN }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+          ENABLE_DISCORD: ${{ vars.ENABLE_DISCORD }}
+          ENABLE_DISCOURSE: ${{ vars.ENABLE_DISCOURSE }}
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           DISCORD_CHANNELS: ${{ secrets.DISCORD_CHANNELS }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
@@ -41,9 +45,7 @@ jobs:
           DISCOURSE_BASE_URL: ${{ vars.DISCOURSE_BASE_URL }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           MAX_SUMMARY_TOKENS: ${{ vars.MAX_SUMMARY_TOKENS }}
-          DRY_RUN: ${{ vars.DRY_RUN }}
           DIGEST_WINDOW_HOURS: ${{ vars.DIGEST_WINDOW_HOURS }}
-          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
           MIN_MESSAGE_LENGTH: ${{ vars.MIN_MESSAGE_LENGTH }}
           EXCLUDE_COMMANDS: ${{ vars.EXCLUDE_COMMANDS }}
           EXCLUDE_LINK_ONLY: ${{ vars.EXCLUDE_LINK_ONLY }}
