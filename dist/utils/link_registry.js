@@ -9,6 +9,7 @@ exports.getDiscourseCategoryByName = getDiscourseCategoryByName;
 exports.registerDiscourseTopic = registerDiscourseTopic;
 exports.getDiscourseTopicById = getDiscourseTopicById;
 exports.getDiscourseTopicByTitle = getDiscourseTopicByTitle;
+exports.getDiscourseTopicBySanitizedName = getDiscourseTopicBySanitizedName;
 exports.lookupDiscordByLabel = lookupDiscordByLabel;
 exports.lookupDiscourseCategoryByLabel = lookupDiscourseCategoryByLabel;
 exports.lookupDiscourseTopicByLabel = lookupDiscourseTopicByLabel;
@@ -24,6 +25,8 @@ const discourseCategories = {}; // keyed by category id
 const discourseCategoriesByNameLower = {}; // keyed by name.toLowerCase()
 const discourseTopics = {}; // keyed by topic id
 const discourseTopicsByTitleLower = {}; // keyed by title.toLowerCase()
+// Additional index: sanitized title -> TopicMeta for permissive lookups
+const discourseTopicsBySanitizedLower = {};
 /**
  * Helper: create a simplified, ASCII-friendly lowercase name used for permissive lookups.
  * Strips emoji/decorative characters and keeps letters, numbers, spaces, hyphen, underscore.
@@ -34,14 +37,15 @@ function sanitizeNameForLookup(s) {
     try {
         const normalized = String(s).normalize("NFKD");
         try {
-            return normalized.replace(/[^\p{L}\p{N}\s\-_]/gu, "").trim().toLowerCase();
+            // collapse multiple whitespace to single space after removing unwanted chars
+            return normalized.replace(/[^\p{L}\p{N}\s\-_]/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
         }
         catch {
-            return normalized.replace(/[^\w\s\-_]/g, "").trim().toLowerCase();
+            return normalized.replace(/[^\w\s\-_]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
         }
     }
     catch {
-        return String(s).replace(/[^\w\s\-_]/g, "").trim().toLowerCase();
+        return String(s).replace(/[^\w\s\-_]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
     }
 }
 // Discord
@@ -99,7 +103,13 @@ function registerDiscourseTopic(meta) {
         return;
     discourseTopics[meta.id] = meta;
     if (meta.title) {
-        discourseTopicsByTitleLower[meta.title.toLowerCase()] = meta;
+        const titleLower = meta.title.toLowerCase();
+        discourseTopicsByTitleLower[titleLower] = meta;
+        // Also index a sanitized variant for permissive lookups
+        const sanitized = sanitizeNameForLookup(meta.title);
+        if (sanitized && sanitized !== titleLower) {
+            discourseTopicsBySanitizedLower[sanitized] = meta;
+        }
     }
 }
 function getDiscourseTopicById(id) {
@@ -111,6 +121,14 @@ function getDiscourseTopicByTitle(title) {
     if (!title)
         return undefined;
     return discourseTopicsByTitleLower[title.toLowerCase()];
+}
+function getDiscourseTopicBySanitizedName(name) {
+    if (!name)
+        return undefined;
+    const s = sanitizeNameForLookup(name);
+    if (!s)
+        return undefined;
+    return discourseTopicsBySanitizedLower[s];
 }
 // Utility: try best-effort lookup by label text in bracketed labels.
 // These helpers are small conveniences for the injection step.
@@ -124,7 +142,16 @@ function lookupDiscourseCategoryByLabel(labelText) {
     return getDiscourseCategoryByName(labelText.trim().toLowerCase());
 }
 function lookupDiscourseTopicByLabel(labelText) {
-    return getDiscourseTopicByTitle(labelText.trim().toLowerCase());
+    const raw = labelText.trim();
+    // try exact title match first
+    const exact = getDiscourseTopicByTitle(raw);
+    if (exact)
+        return exact;
+    // fallback to sanitized lookup
+    const sanitized = getDiscourseTopicBySanitizedName(raw);
+    if (sanitized)
+        return sanitized;
+    return undefined;
 }
 /**
  * Reset all in-memory registries — intended for unit tests.

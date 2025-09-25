@@ -66,45 +66,77 @@ async function run() {
     else {
         logger_1.logger.info("Discourse disabled (incomplete credentials).");
     }
-    // Reuse existing filters by mapping NormalizedMessage -> Discord-like MessageDTO shape
-    // Also inject a stable source label into channelId so clusters and prompts retain source info.
-    const candidateMessages = normalizedAll.map((m) => {
-        const sourceLabel = (0, source_labels_1.formatSourceLabel)({
-            source: m.source,
-            channelId: m.channelId,
-            forum: m.forum,
-            categoryId: m.categoryId,
+    // Group messages by source identifier (Discord channel or Discourse topic).
+    // For Discord use channelId; for Discourse use a stable `disc-topic-<id>` key.
+    const messagesBySource = new Map();
+    for (const m of normalizedAll) {
+        const sourceId = m.source === "discord" ? m.channelId : m.topicId ? `disc-topic-${m.topicId}` : m.channelId;
+        if (!messagesBySource.has(sourceId)) {
+            messagesBySource.set(sourceId, []);
+        }
+        messagesBySource.get(sourceId).push(m);
+    }
+    logger_1.logger.info(`Found ${messagesBySource.size} message groups by source.`);
+    const allSummaries = [];
+    let totalFiltered = 0;
+    let totalSummarizedGroups = 0;
+    // Process each group independently: filter, (optional) cluster, summarize
+    for (const [sourceId, group] of messagesBySource.entries()) {
+        // Map to candidateMessages shape and inject source label into channelId
+        const candidateGroup = group.map((m) => {
+            const sourceLabel = (0, source_labels_1.formatSourceLabel)({
+                source: m.source,
+                channelId: m.channelId,
+                forum: m.forum,
+                categoryId: m.categoryId,
+            });
+            return {
+                id: m.id,
+                channelId: `${sourceLabel} ${m.channelId || ""}`.trim(),
+                author: m.author,
+                content: m.content,
+                createdAt: m.createdAt,
+                url: m.url,
+            };
         });
-        return {
-            id: m.id,
-            // Preface channelId with the bracketed source label so downstream clustering and prompts include it.
-            channelId: `${sourceLabel} ${m.channelId || ""}`.trim(),
-            author: m.author,
-            content: m.content,
-            createdAt: m.createdAt,
-            url: m.url,
-        };
-    });
-    logger_1.logger.info("Applying filters...");
-    const filteredMessages = (0, filters_1.applyMessageFilters)(candidateMessages, config);
-    logger_1.logger.info(`Filtered to ${filteredMessages.length} messages.`);
-    logger_1.logger.info("Summarizing messages...");
-    let summary;
-    let clusters = [];
-    if (config.ATTRIBUTION_ENABLED) {
-        logger_1.logger.info("Attribution enabled — building topic clusters...");
-        clusters = (0, topics_1.clusterMessages)(filteredMessages, config.TOPIC_GAP_MINUTES);
-        logger_1.logger.info(`Built ${clusters.length} topic clusters for attribution.`);
-        summary = await (0, gemini_1.summarizeAttributed)(clusters, config);
-        if (config.ATTRIBUTION_FALLBACK_ENABLED) {
-            logger_1.logger.info("Attribution fallback enabled — injecting missing participant lines if needed...");
-            summary = (0, participants_fallback_1.default)(summary, clusters, config.MAX_TOPIC_PARTICIPANTS);
+        // Ensure chronological order for clustering assumptions
+        candidateGroup.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        // Apply existing filters to this group's messages
+        const filteredGroup = (0, filters_1.applyMessageFilters)(candidateGroup, config);
+        if (!filteredGroup || filteredGroup.length === 0) {
+            if (isDebug)
+                logger_1.logger.debug("Skipping group with no messages after filters", { sourceId });
+            continue;
+        }
+        totalFiltered += filteredGroup.length;
+        // Summarize per-group (attributed or not)
+        let groupSummary = "";
+        if (config.ATTRIBUTION_ENABLED) {
+            if (isDebug)
+                logger_1.logger.debug("Attribution enabled for group", { sourceId, count: filteredGroup.length });
+            const clustersForGroup = (0, topics_1.clusterMessages)(filteredGroup, config.TOPIC_GAP_MINUTES);
+            if (isDebug)
+                logger_1.logger.debug("Built clusters for group", { sourceId, clusterCount: clustersForGroup.length });
+            groupSummary = await (0, gemini_1.summarizeAttributed)(clustersForGroup, config);
+            if (config.ATTRIBUTION_FALLBACK_ENABLED) {
+                if (isDebug)
+                    logger_1.logger.debug("Applying attribution fallback for group", { sourceId });
+                groupSummary = (0, participants_fallback_1.default)(groupSummary, clustersForGroup, config.MAX_TOPIC_PARTICIPANTS);
+            }
+        }
+        else {
+            groupSummary = await (0, gemini_1.summarize)(filteredGroup, config);
+        }
+        if (groupSummary && groupSummary.trim().length > 0) {
+            allSummaries.push(groupSummary);
+            totalSummarizedGroups++;
         }
     }
-    else {
-        summary = await (0, gemini_1.summarize)(filteredMessages, config);
-    }
+    // Combine all per-source summaries into one digest
+    let summary = allSummaries.join("\n\n---\n\n");
     if (isDebug) {
+        logger_1.logger.debug("[DEBUG] total.groups.summarized", totalSummarizedGroups);
+        logger_1.logger.debug("[DEBUG] total.filtered.messages", totalFiltered);
         logger_1.logger.debug("[DEBUG] summary.raw.len", summary.length);
         logger_1.logger.debug("[DEBUG] summary.raw.preview", summary.slice(0, 1200));
     }

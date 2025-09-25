@@ -29,11 +29,14 @@ describe("topics utils", () => {
     ];
 
     const clusters = clusterMessages(messages, 20); // 20 minute gap
-    expect(clusters.length).toBe(3);
+    // Cluster logic now splits only by time gap (caller groups by source),
+    // so messages c and d (30m and 31m) fall into the same time window.
+    expect(clusters.length).toBe(2);
     expect(clusters[0].channelId).toBe("chan1");
     expect(clusters[0].messages.length).toBe(2); // a,b
-    expect(clusters[1].messages.length).toBe(1); // c
-    expect(clusters[2].channelId).toBe("chan2");
+    expect(clusters[1].messages.length).toBe(2); // c,d
+    // The cluster's channelId is taken from the first message in the cluster (c -> "chan1")
+    expect(clusters[1].channelId).toBe("chan1");
   });
 
   it("extractParticipants preserves first-seen order and dedups", () => {

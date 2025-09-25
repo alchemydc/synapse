@@ -29,6 +29,7 @@ function buildPrompt(messages) {
         "Community Digest:",
         "Summarize the following Discord messages. For each section, produce concise bullets.",
         "Sections: Decisions, Action Items, Links. For each topic, start with a single title line and then concise bullets; do not add a separate 'Key Topics' heading.",
+        "If any messages contain URLs or links, extract them and list them under a 'Shared Links' heading for that topic.",
         "Preserve any leading bracketed source labels (e.g. [Discord #channel], [Forum category]) exactly as provided. Treat the first pair of square brackets at the start of each message as immutable: do not remove, reword, translate, sanitize, expand, or alter the text inside them (including emojis or decorative characters). If you cannot summarize while keeping those labels unchanged, keep them unchanged and continue the summary.",
         "",
         ...messages.map((m, i) => `[${i + 1}] ${formatMessageLine(m)}`),
@@ -46,6 +47,7 @@ function buildAttributedPrompt(clusters, config) {
     parts.push("Community Digest (Attributed):");
     parts.push("Summarize the following topic clusters derived from Discord messages.");
     parts.push("For each topic, produce concise bullets. If there are Decisions, Action Items, or Links, label those sections accordingly. Start each topic with a single title line; do not include an extra 'Key Topics' heading.");
+    parts.push("If any messages contain URLs or links, extract them and list them under a 'Shared Links' heading for that topic.");
     parts.push("When generating each topic heading, preserve the leading bracketed source label exactly as provided (e.g., [Discord #channel], [Forum category]). Treat the first pair of square brackets at the start of the heading as immutable: do not remove, reword, translate, sanitize, expand, or alter the text inside them (including emojis or decorative characters). If you cannot summarize while keeping those labels unchanged, keep them unchanged and continue the summary.");
     parts.push("For any bullet derived from a topic, include a trailing 'Participants: name1, name2' line listing the participants involved in that topic.");
     parts.push("Do not invent participants not listed below. Use the exact participant names provided.");

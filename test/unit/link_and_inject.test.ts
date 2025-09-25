@@ -1,9 +1,11 @@
-// test/unit/link_and_inject.test.ts
+ // test/unit/link_and_inject.test.ts
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   registerDiscordChannel,
   getDiscordChannelById,
   lookupDiscordByLabel,
+  registerDiscourseTopic,
+  registerDiscourseCategory,
   resetRegistries,
 } from "../../src/utils/link_registry";
 import { injectSourceLinks } from "../../src/utils/source_link_inject";
@@ -88,5 +90,79 @@ describe("injectSourceLinks integration", () => {
     const md = "[Discord #missing] Some heading";
     const out = injectSourceLinks(md);
     expect(out).toContain("[Discord #missing]");
+  });
+
+  it("links forum topic by exact title when registered", () => {
+    registerDiscourseTopic({
+      id: 300,
+      title: "My Awesome Topic",
+      url: "https://forum.example.org/t/my-awesome-topic/300",
+      platform: "discourse",
+    });
+
+    const md = "[Forum topic:My Awesome Topic] Topic heading\n\nContent";
+    const out = injectSourceLinks(md);
+    expect(out).toContain("[Forum <https://forum.example.org/t/my-awesome-topic/300|topic: My Awesome Topic>]");
+  });
+
+  it("prefers disc-topic-<id> token when present", () => {
+    registerDiscourseTopic({
+      id: 301,
+      title: "Other Topic",
+      url: "https://forum.example.org/t/other-topic/301",
+      platform: "discourse",
+    });
+
+    const md = "[Forum topic:Other Topic] disc-topic-301";
+    const out = injectSourceLinks(md);
+    expect(out).toContain("[Forum <https://forum.example.org/t/other-topic/301|topic: Other Topic>]");
+  });
+
+  it("sanitized title match links when LLM altered punctuation or emoji", () => {
+    registerDiscourseTopic({
+      id: 302,
+      title: "🚀 Launch — Notes",
+      url: "https://forum.example.org/t/launch-notes/302",
+      platform: "discourse",
+    });
+
+    // LLM may output a cleaned title without emoji or punctuation
+    const md = "[Forum topic:Launch Notes] Topic heading";
+    const out = injectSourceLinks(md);
+    expect(out).toContain("[Forum <https://forum.example.org/t/launch-notes/302|topic: 🚀 Launch — Notes>]");
+  });
+
+  it("links category when category registered", () => {
+    registerDiscourseCategory({
+      id: 5,
+      name: "Announcements",
+      slug: "announcements",
+      url: "https://forum.example.org/c/announcements/5",
+      platform: "discourse",
+    });
+
+    const md = "[Forum category:Announcements] Some heading";
+    const out = injectSourceLinks(md);
+    expect(out).toContain("[Forum <https://forum.example.org/c/announcements/5|category: Announcements>]");
+  });
+
+  it("prefers topic link when disc-topic token follows a category label", () => {
+    registerDiscourseTopic({
+      id: 6,
+      title: "Category Topic",
+      url: "https://forum.example.org/t/category-topic/6",
+      platform: "discourse",
+    });
+    registerDiscourseCategory({
+      id: 6,
+      name: "CategoryTopic",
+      slug: "categorytopic",
+      url: "https://forum.example.org/c/categorytopic/6",
+      platform: "discourse",
+    });
+
+    const md = "[Forum category:CategoryTopic] disc-topic-6";
+    const out = injectSourceLinks(md);
+    expect(out).toContain("[Forum <https://forum.example.org/t/category-topic/6|topic: Category Topic>]");
   });
 });
