@@ -16,6 +16,9 @@ const PREAMBLE_PATTERNS = [
     /i will wait for the full input/i,
     /i will summarize/i,
     /^\s*here'?s the summary/i,
+    /^\s*please\s+provide/i,
+    /^\s*here\s+(is|are)\s+(the\s+)?/i,
+    /\bdisc-topic-\d+\b/gi, // Remove disc-topic artifacts
 ];
 /**
  * sanitizeLLMOutput - remove common LLM meta preambles and leading acknowledgements.
@@ -71,8 +74,19 @@ function sanitizeLLMOutput(text) {
         break;
     }
     if (i > 0) {
-        return lines.slice(i).join("\n").trim();
+        text = lines.slice(i).join("\n").trim();
     }
+    // Final pass: remove disc-topic-N artifacts and legacy --- separators
+    text = text.replace(/\bdisc-topic-\d+\b/g, "");
+    // Remove legacy '--- ##' patterns that appear when LLM mixes old and new formats
+    // Match --- with optional spaces before and after, followed by ##
+    text = text.replace(/\s+---\s+##\s+/g, "\n\n## ");
+    // Match standalone --- separators (not part of --- ##)
+    text = text.replace(/\s+---\s+/g, "\n\n");
+    text = text.replace(/\s+---$/gm, ""); // --- at end of line
+    text = text.replace(/^---\s+/gm, ""); // --- at start of line
+    // Clean up excessive whitespace
+    text = text.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n");
     return text.trim();
 }
 exports.default = sanitizeLLMOutput;

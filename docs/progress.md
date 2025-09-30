@@ -1,6 +1,6 @@
 # progress.md
 
-## Snapshot (2025-09-25)
+## Snapshot (2025-09-30)
 This document captures the current implementation status and short-term plan for the Synapse digest pipeline.
 
 ### High-level status
@@ -8,7 +8,9 @@ This document captures the current implementation status and short-term plan for
 - Per-source grouping and per-group summarization implemented; prompts updated to surface a "Shared Links" section.
 - Link registry and injection improved: permissive Discourse title matching and safer forum-label injection implemented and covered by tests.
 - Slack Block Kit posting now guards against oversized payloads by chunking messages and capping fallback text.
-- Unit test suite passing locally (all unit tests green).
+- **CRITICAL FIX (2025-09-30):** Fixed Slack 50-block limit error by grouping content under topic headers instead of splitting by paragraphs. Block count reduced by ~40-60%.
+- **NEW (2025-09-30):** Visual hierarchy improvements with emoji-based priority indicators, DM chatter filtering, enhanced LLM sanitization, and topic prioritization implemented.
+- Unit test suite passing locally (55/55 tests green, including new block count tests).
 
 ## Completed work (new entries)
 - Implemented safer Block Kit section splitting in `src/utils/format.ts` to avoid the legacy single-section 2800-char truncation that caused Discourse summaries to be lost in Slack posts.

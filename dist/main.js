@@ -185,8 +185,11 @@ async function run() {
     const dedupe = (await Promise.resolve().then(() => __importStar(require("./utils/participants_dedupe")))).collapseDuplicateParticipants;
     let cleaned = sanitize(linkedSummary);
     cleaned = dedupe(cleaned);
+    // Sort topics by priority (emoji-based)
+    const { sortAndReconstructSummary } = await Promise.resolve().then(() => __importStar(require("./utils/topic_priority")));
+    const sortedSummary = sortAndReconstructSummary(cleaned);
     const blocks = (0, format_1.buildDigestBlocks)({
-        summary: cleaned,
+        summary: sortedSummary,
         start,
         end,
         dateTitle,
