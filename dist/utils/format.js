@@ -59,6 +59,8 @@ function stripLeadingDigestTitle(s) {
     return s.replace(/^\s*(?:[#*]+\s*)?Community\s+Digest(?:\s*-\s*\d{4}-\d{2}-\d{2})?\s*:?\s*\n?/i, "").replace(/^\*\s*\n/, "").trimStart();
 }
 function buildDigestBlocks(params) {
+    // Slack limit: 50 blocks per message. Use 45 as safe budget (5 block safety margin)
+    const MAX_BLOCKS_PER_MESSAGE = 45;
     const cleaned = stripLeadingDigestTitle(params.summary);
     if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
         logger_1.logger.debug("[DEBUG] buildDigestBlocks.cleaned", cleaned.slice(0, DEBUG_SLICE));
@@ -124,7 +126,7 @@ function buildDigestBlocks(params) {
                 blocks.pop();
             }
             appendTrailingParticipants();
-            return blocks;
+            return [blocks];
         }
         // Next, try splitting by paragraphs (two-or-more newlines) to create smaller sections
         const paragraphs = mrkdwn.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
@@ -151,7 +153,7 @@ function buildDigestBlocks(params) {
                 }
             }
             appendTrailingParticipants();
-            return blocks;
+            return [blocks];
         }
         // As a last resort for a single very large blob, soft-split by character windows at safe boundaries.
         const max = MAX_SECTION_CHARS;
@@ -168,7 +170,7 @@ function buildDigestBlocks(params) {
             cursor += part.length || max;
         }
         appendTrailingParticipants();
-        return blocks;
+        return [blocks];
     }
     // Parse topics by detecting bold headers at start of line (pattern: *Topic Title*)
     // This groups all content (bullets, links, etc.) under each topic into a single section block
@@ -185,8 +187,13 @@ function buildDigestBlocks(params) {
         if (sectionText) {
             blocks.push({ type: "section", text: { type: "mrkdwn", text: sectionText } });
         }
-        return blocks;
+        return [blocks];
     }
+    // Build topic blocks, splitting into multiple messages when needed
+    const HEADER_BLOCK_COUNT = 3; // header + context + divider
+    const availableBlockBudget = MAX_BLOCKS_PER_MESSAGE - HEADER_BLOCK_COUNT;
+    const allBlockSets = [];
+    let currentBlocks = [...blocks]; // Start with header blocks
     // Extract and process content for each topic
     for (let i = 0; i < topics.length; i++) {
         const start = topics[i].start;
@@ -201,22 +208,37 @@ function buildDigestBlocks(params) {
             participantsLine = participantsMatch[1].trim();
             lines.pop();
         }
-        // Combine all lines for this topic into a single section block
-        // Use single newlines to keep content compact
+        // Calculate blocks this topic will add
+        const topicBlocks = [];
         const sectionText = truncateSection(lines.join("\n").replace(/\n{2,}/g, "\n"));
         if (sectionText) {
-            blocks.push({ type: "section", text: { type: "mrkdwn", text: sectionText } });
+            topicBlocks.push({ type: "section", text: { type: "mrkdwn", text: sectionText } });
         }
         if (participantsLine) {
-            blocks.push({
+            topicBlocks.push({
                 type: "context",
                 elements: [{ type: "mrkdwn", text: `Participants: ${participantsLine}` }]
             });
         }
-        // Skip dividers to save blocks - rely on bold headers for visual separation
-        // (Dividers take up precious block count and with many topics we hit the 50-block limit)
+        // Check if adding this topic would exceed the budget
+        const wouldExceedBudget = (currentBlocks.length - HEADER_BLOCK_COUNT) + topicBlocks.length > availableBlockBudget;
+        if (wouldExceedBudget && currentBlocks.length > HEADER_BLOCK_COUNT) {
+            // Save current block set and start a new one
+            allBlockSets.push(currentBlocks);
+            currentBlocks = [
+                { type: "header", text: { type: "plain_text", text: `Community Digest — ${params.dateTitle} (UTC) [continued]` } },
+                { type: "context", elements: [{ type: "mrkdwn", text: range }] },
+                { type: "divider" },
+            ];
+        }
+        // Add topic blocks to current set
+        currentBlocks.push(...topicBlocks);
     }
-    return blocks;
+    // Add final block set
+    if (currentBlocks.length > HEADER_BLOCK_COUNT) {
+        allBlockSets.push(currentBlocks);
+    }
+    return allBlockSets;
 }
 // Legacy fallback
 function formatDigest(summary) {

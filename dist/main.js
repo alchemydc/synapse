@@ -188,7 +188,7 @@ async function run() {
     // Sort topics by priority (emoji-based)
     const { sortAndReconstructSummary } = await Promise.resolve().then(() => __importStar(require("./utils/topic_priority")));
     const sortedSummary = sortAndReconstructSummary(cleaned);
-    const blocks = (0, format_1.buildDigestBlocks)({
+    const blockSets = (0, format_1.buildDigestBlocks)({
         summary: sortedSummary,
         start,
         end,
@@ -196,7 +196,17 @@ async function run() {
     });
     const fallback = (0, format_1.formatDigest)(cleaned);
     logger_1.logger.info("Posting digest to Slack...");
-    await (0, slack_1.postDigestBlocks)(blocks, fallback, config);
+    if (blockSets.length > 1) {
+        logger_1.logger.info(`Digest split into ${blockSets.length} messages due to block count`);
+    }
+    for (let i = 0; i < blockSets.length; i++) {
+        const blocks = blockSets[i];
+        const messageFallback = blockSets.length > 1
+            ? `${fallback} (Part ${i + 1}/${blockSets.length})`
+            : fallback;
+        logger_1.logger.info(`Posting message ${i + 1}/${blockSets.length}...`);
+        await (0, slack_1.postDigestBlocks)(blocks, messageFallback, config);
+    }
     logger_1.logger.info("Pipeline complete.");
 }
 run().catch((err) => {

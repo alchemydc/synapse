@@ -31,7 +31,10 @@ describe("buildDigestBlocks — block splitting and truncation", () => {
       "- item b",
     ].join("\n");
 
-    const blocks = buildDigestBlocks({ summary, start, end, dateTitle });
+    const blockSets = buildDigestBlocks({ summary, start, end, dateTitle });
+    expect(blockSets).toHaveLength(1);
+    const blocks = blockSets[0];
+    
     // header/context/divider expected
     expect(blocks[0].type).toBe("header");
     expect(blocks[1].type).toBe("context");
@@ -61,7 +64,9 @@ describe("buildDigestBlocks — block splitting and truncation", () => {
     const paragraphs = new Array(12).fill(para).join("\n\n");
     const summary = paragraphs + "\n\nParticipants: alice, bob";
 
-    const blocks = buildDigestBlocks({ summary, start, end, dateTitle });
+    const blockSets = buildDigestBlocks({ summary, start, end, dateTitle });
+    expect(blockSets).toHaveLength(1);
+    const blocks = blockSets[0];
 
     const sections = blocks.filter((b) => b.type === "section").map((s) => String((s as any).text.text));
     expect(sections.length).toBeGreaterThan(1);
@@ -90,7 +95,9 @@ describe("buildDigestBlocks — block splitting and truncation", () => {
       "Participants: carol, dave",
     ].join("\n");
 
-    const blocks = buildDigestBlocks({ summary, start, end, dateTitle });
+    const blockSets = buildDigestBlocks({ summary, start, end, dateTitle });
+    expect(blockSets).toHaveLength(1);
+    const blocks = blockSets[0];
 
     // There should be at least one context block containing participants
     const contexts = blocks.filter((b) => b.type === "context");

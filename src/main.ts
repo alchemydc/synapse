@@ -167,7 +167,7 @@ async function run() {
   const { sortAndReconstructSummary } = await import("./utils/topic_priority");
   const sortedSummary = sortAndReconstructSummary(cleaned);
 
-  const blocks = buildDigestBlocks({
+  const blockSets = buildDigestBlocks({
     summary: sortedSummary,
     start,
     end,
@@ -176,7 +176,20 @@ async function run() {
   const fallback = formatDigest(cleaned);
 
   logger.info("Posting digest to Slack...");
-  await postDigestBlocks(blocks, fallback, config);
+  if (blockSets.length > 1) {
+    logger.info(`Digest split into ${blockSets.length} messages due to block count`);
+  }
+  
+  for (let i = 0; i < blockSets.length; i++) {
+    const blocks = blockSets[i];
+    const messageFallback = blockSets.length > 1 
+      ? `${fallback} (Part ${i + 1}/${blockSets.length})`
+      : fallback;
+    
+    logger.info(`Posting message ${i + 1}/${blockSets.length}...`);
+    await postDigestBlocks(blocks, messageFallback, config);
+  }
+  
   logger.info("Pipeline complete.");
 }
 

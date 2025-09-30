@@ -6,13 +6,20 @@ import {
   GatewayIntentBits,
   TextChannel,
 } from "discord.js";
+import { logger } from "../utils/logger";
+import { loadConfig } from "../config/index";
 
 dotenv.config();
 
 async function main() {
+  const config = loadConfig();
   const token = process.env.DISCORD_TOKEN;
   const testChannelId = process.env.DISCORD_TEST_CHANNEL_ID;
   if (!token) throw new Error("DISCORD_TOKEN not set");
+
+  const isDebug = config.LOG_LEVEL === "debug";
+  const windowMs = config.DIGEST_WINDOW_HOURS * 60 * 60 * 1000;
+  const cutoffTime = Date.now() - windowMs;
 
   const client = new Client({
     intents: [
@@ -53,6 +60,27 @@ async function main() {
       const sorted = [...msgs.values()].sort(
         (a, b) => a.createdTimestamp - b.createdTimestamp
       );
+      
+      // Filter messages within the digest window for debug logging
+      const recentMessages = sorted.filter(m => m.createdTimestamp >= cutoffTime);
+      
+      if (isDebug) {
+        logger.debug(`\n=== DEBUG: All messages in ${config.DIGEST_WINDOW_HOURS}h window (${recentMessages.length} messages) ===`);
+        for (const m of recentMessages) {
+          const ts = new Date(m.createdTimestamp).toISOString();
+          logger.debug({
+            id: m.id,
+            timestamp: ts,
+            author: m.author.username,
+            content: m.content || "(empty)",
+            hasAttachments: m.attachments.size > 0,
+            hasEmbeds: m.embeds.length > 0,
+          });
+        }
+        logger.debug("=== END DEBUG ===\n");
+      }
+      
+      // Standard output (unchanged)
       for (const m of sorted) {
         if (!m.content?.trim()) continue;
         const ts = new Date(m.createdTimestamp).toISOString();

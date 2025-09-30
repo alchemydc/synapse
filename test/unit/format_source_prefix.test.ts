@@ -12,7 +12,8 @@ describe("Formatter preserves bracketed source prefixes", () => {
     const summary = "[Forum category:12] Proposal: Improve docs\nDetails about proposal\n\nParticipants: carol";
     const start = new Date();
     const end = new Date();
-    const blocks = buildDigestBlocks({ summary, start, end, dateTitle: "2025-09-23" });
+    const blockSets = buildDigestBlocks({ summary, start, end, dateTitle: "2025-09-23" });
+    const blocks = blockSets[0];
     // find first section block with mrkdwn
     const section = blocks.find(b => b.type === "section" && b.text && b.text.type === "mrkdwn");
     expect(section).toBeDefined();

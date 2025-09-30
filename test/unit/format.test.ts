@@ -92,12 +92,13 @@ describe("normalizeToSlackMrkdwn", () => {
 
 describe("buildDigestBlocks", () => {
   it("builds blocks with UTC header, context, divider, and summary section", () => {
-    const blocks = buildDigestBlocks({
-      summary: "Digest summary",
+    const blockSets = buildDigestBlocks({
+      summary: "Some summary text.",
       start: new Date("2025-08-27T00:00:00Z"),
       end: new Date("2025-08-28T00:00:00Z"),
       dateTitle: "2025-08-27",
     });
+    const blocks = blockSets[0];
     expect(blocks[0].type).toBe("header");
     expect(blocks[0].text.text).toContain("Community Digest — 2025-08-27 (UTC)");
     expect(blocks[1].type).toBe("context");
@@ -105,7 +106,7 @@ describe("buildDigestBlocks", () => {
     expect(blocks[2].type).toBe("divider");
     expect(blocks[3].type).toBe("section");
     expect(blocks[3].text.text).toContain("*Summary*");
-    expect(blocks[3].text.text).toContain("Digest summary");
+    expect(blocks[3].text.text).toContain("Some summary text");
   });
 });
 
