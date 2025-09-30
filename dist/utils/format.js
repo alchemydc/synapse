@@ -22,6 +22,9 @@ function normalizeToSlackMrkdwn(md) {
         inlines.push(p1);
         return `__INL_${inlines.length - 1}__`;
     });
+    // Handle headers that appear mid-line (after other content)
+    // Split them onto a new line first
+    md = md.replace(/^(.+)\s+##\s+(.+)$/gm, "$1\n\n## $2");
     let out = md
         // headings -> bold lines
         .replace(/^#{1,6}\s+(.*)$/gm, "*$1*")
@@ -78,9 +81,11 @@ function buildDigestBlocks(params) {
         { type: "context", elements: [{ type: "mrkdwn", text: range }] },
         { type: "divider" },
     ];
-    // If the digest doesn't include explicit sectioning, attempt to avoid aggressive truncation
-    // by splitting legacy single-blob output into smaller topic/paragraph sections.
-    if (!/^\s*\*?Summary\*?/im.test(mrkdwn)) {
+    // Check if the digest has topic headers (bold lines at start of line)
+    // If no headers found, use legacy paragraph-splitting logic
+    const hasTopicHeaders = /^\*[^*\n]+\*$/m.test(mrkdwn);
+    if (!hasTopicHeaders) {
+        // Legacy path: no clear topic structure, split by paragraphs
         const MAX_SECTION_CHARS = Number(process.env.SECTION_CHAR_LIMIT) || 2800;
         // Helper to push a section and ensure the very first pushed section is labeled "*Summary*"
         let firstSectionPrefixed = false;
@@ -165,37 +170,51 @@ function buildDigestBlocks(params) {
         appendTrailingParticipants();
         return blocks;
     }
-    // Split digest into logical sections by two-or-more newlines.
-    // Each section may end with a "Participants: ..." line which we render as a separate context block.
-    const sections = mrkdwn.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
-    for (let i = 0; i < sections.length; i++) {
-        const sec = sections[i];
-        // Try to extract a trailing Participants line
-        const lines = sec.split("\n").map(l => l.trim()).filter(Boolean);
+    // Parse topics by detecting bold headers at start of line (pattern: *Topic Title*)
+    // This groups all content (bullets, links, etc.) under each topic into a single section block
+    // to avoid hitting Slack's 50-block limit.
+    const topicPattern = /^\*([^*\n]+)\*$/gm;
+    const topics = [];
+    let match;
+    while ((match = topicPattern.exec(mrkdwn)) !== null) {
+        topics.push({ start: match.index, header: match[1] });
+    }
+    if (topics.length === 0) {
+        // No topics found, treat entire content as single section
+        const sectionText = truncateSection(mrkdwn);
+        if (sectionText) {
+            blocks.push({ type: "section", text: { type: "mrkdwn", text: sectionText } });
+        }
+        return blocks;
+    }
+    // Extract and process content for each topic
+    for (let i = 0; i < topics.length; i++) {
+        const start = topics[i].start;
+        const end = i < topics.length - 1 ? topics[i + 1].start : mrkdwn.length;
+        const topicContent = mrkdwn.slice(start, end).trim();
+        // Extract trailing Participants line from this topic's content
+        const lines = topicContent.split("\n");
         let participantsLine = null;
-        // check last line for a Participants: prefix (case-insensitive)
         const last = lines[lines.length - 1] || "";
-        const match = last.match(/^\s*Participants:\s*(.+)$/i);
-        if (match) {
-            participantsLine = match[1].trim();
-            // remove the last line from the section text
+        const participantsMatch = last.match(/^\s*Participants:\s*(.+)$/i);
+        if (participantsMatch) {
+            participantsLine = participantsMatch[1].trim();
             lines.pop();
         }
-        const sectionText = truncateSection(lines.join("\n\n"));
+        // Combine all lines for this topic into a single section block
+        // Use single newlines to keep content compact
+        const sectionText = truncateSection(lines.join("\n").replace(/\n{2,}/g, "\n"));
         if (sectionText) {
             blocks.push({ type: "section", text: { type: "mrkdwn", text: sectionText } });
         }
         if (participantsLine) {
-            // render participants in a smaller context block
             blocks.push({
                 type: "context",
-                elements: [{ type: "mrkdwn", text: `Participants: ${participantsLine}` }],
+                elements: [{ type: "mrkdwn", text: `Participants: ${participantsLine}` }]
             });
         }
-        // Add divider after each topic section (except the last one) for visual separation
-        if (i < sections.length - 1) {
-            blocks.push({ type: "divider" });
-        }
+        // Skip dividers to save blocks - rely on bold headers for visual separation
+        // (Dividers take up precious block count and with many topics we hit the 50-block limit)
     }
     return blocks;
 }
