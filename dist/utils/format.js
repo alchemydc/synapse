@@ -168,7 +168,8 @@ function buildDigestBlocks(params) {
     // Split digest into logical sections by two-or-more newlines.
     // Each section may end with a "Participants: ..." line which we render as a separate context block.
     const sections = mrkdwn.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
-    for (const sec of sections) {
+    for (let i = 0; i < sections.length; i++) {
+        const sec = sections[i];
         // Try to extract a trailing Participants line
         const lines = sec.split("\n").map(l => l.trim()).filter(Boolean);
         let participantsLine = null;
@@ -190,6 +191,10 @@ function buildDigestBlocks(params) {
                 type: "context",
                 elements: [{ type: "mrkdwn", text: `Participants: ${participantsLine}` }],
             });
+        }
+        // Add divider after each topic section (except the last one) for visual separation
+        if (i < sections.length - 1) {
+            blocks.push({ type: "divider" });
         }
     }
     return blocks;

@@ -96,21 +96,21 @@ function injectSourceLinks(md) {
                 const tMeta = (0, link_registry_1.getDiscourseTopicById)(tid);
                 if (tMeta && tMeta.url) {
                     // Use the registered topic title verbatim for visible text (preserve emoji/punctuation)
-                    const visible = `topic: ${tMeta.title || `topic-${tid}`}`;
+                    const visibleTitle = tMeta.title || `topic-${tid}`;
                     if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
                         logger_1.logger.debug("[DEBUG] injectSourceLinks.forumTopic (byId)", { title, discToken, topicId: tid, url: tMeta.url });
                     }
-                    return `[Forum <${tMeta.url}|${visible}>]`;
+                    return `[Forum <${tMeta.url}|${visibleTitle}>]`;
                 }
             }
             const meta = (0, link_registry_1.lookupDiscourseTopicByLabel)(title);
             if (meta && meta.url) {
                 // Prefer the registered title verbatim so emoji/punctuation are preserved in Slack visible text
-                const visible = `topic: ${meta.title || title}`;
+                const visibleTitle = meta.title || title;
                 if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
                     logger_1.logger.debug("[DEBUG] injectSourceLinks.forumTopic (byLabel)", { title, discToken, matchedTitle: meta.title, url: meta.url });
                 }
-                return `[Forum <${meta.url}|${visible}>]`;
+                return `[Forum <${meta.url}|${visibleTitle}>]`;
             }
             if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
                 logger_1.logger.debug("[DEBUG] injectSourceLinks.forumTopic.notFound", { title, discToken });
@@ -125,7 +125,7 @@ function injectSourceLinks(md) {
             }
             catch { }
         }
-        return `[Forum topic:${title}]${discToken ? " " + discToken : ""}`;
+        return `[Forum ${title}]${discToken ? " " + discToken : ""}`;
     });
     // Forum category: [Forum category:some-name] — if followed by disc-topic-N, try linking to the topic instead
     md = md.replace(/\[Forum\s+category:([^\]]+)\](?:\s+(disc-topic-(\d+)))?/g, (_m, label, discToken, topicIdStr) => {
@@ -133,16 +133,47 @@ function injectSourceLinks(md) {
             const tid = Number(topicIdStr);
             const tMeta = (0, link_registry_1.getDiscourseTopicById)(tid);
             if (tMeta && tMeta.url) {
-                const visible = `topic: ${sanitizeVisible(tMeta.title) || `topic-${tid}`}`;
-                return `[Forum <${tMeta.url}|${visible}>]`;
+                const visibleTitle = sanitizeVisible(tMeta.title) || `topic-${tid}`;
+                return `[Forum <${tMeta.url}|${visibleTitle}>]`;
             }
         }
         const meta = (0, link_registry_1.lookupDiscourseCategoryByLabel)(label);
         if (meta && meta.url) {
-            const visible = `category: ${sanitizeVisible(meta.name) || label}`;
+            const visible = sanitizeVisible(meta.name) || label;
             return `[Forum <${meta.url}|${visible}>]`;
         }
-        return `[Forum category:${label}]${discToken ? " " + discToken : ""}`;
+        return `[Forum ${label}]${discToken ? " " + discToken : ""}`;
+    });
+    // Fallback: handle plain `[Forum Title]` labels (no `topic:` or `category:` token).
+    // This lets formatSourceLabel emit `[Forum My Title]` while still allowing link injection.
+    md = md.replace(/\[Forum\s+([^\]]+)\](?:\s+(disc-topic-(\d+)))?/g, (_m, label, discToken, topicIdStr) => {
+        try {
+            // prefer explicit disc-topic token if present
+            if (topicIdStr) {
+                const tid = Number(topicIdStr);
+                const tMeta = (0, link_registry_1.getDiscourseTopicById)(tid);
+                if (tMeta && tMeta.url) {
+                    const visibleTitle = tMeta.title || `topic-${tid}`;
+                    return `[Forum <${tMeta.url}|${visibleTitle}>]${discToken ? " " + discToken : ""}`;
+                }
+            }
+            // try topic lookup by label first
+            const topicMeta = (0, link_registry_1.lookupDiscourseTopicByLabel)(label);
+            if (topicMeta && topicMeta.url) {
+                const visibleTitle = topicMeta.title || label;
+                return `[Forum <${topicMeta.url}|${visibleTitle}>]${discToken ? " " + discToken : ""}`;
+            }
+            // then try category lookup
+            const catMeta = (0, link_registry_1.lookupDiscourseCategoryByLabel)(label);
+            if (catMeta && catMeta.url) {
+                const visibleCat = sanitizeVisible(catMeta.name) || label;
+                return `[Forum <${catMeta.url}|${visibleCat}>]${discToken ? " " + discToken : ""}`;
+            }
+        }
+        catch (e) {
+            // on error, fallthrough and leave original label
+        }
+        return `[Forum ${label}]${discToken ? " " + discToken : ""}`;
     });
     if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
         try {

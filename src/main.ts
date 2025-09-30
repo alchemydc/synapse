@@ -163,8 +163,12 @@ async function run() {
   let cleaned = sanitize(linkedSummary);
   cleaned = dedupe(cleaned);
 
+  // Sort topics by priority (emoji-based)
+  const { sortAndReconstructSummary } = await import("./utils/topic_priority");
+  const sortedSummary = sortAndReconstructSummary(cleaned);
+
   const blocks = buildDigestBlocks({
-    summary: cleaned,
+    summary: sortedSummary,
     start,
     end,
     dateTitle,

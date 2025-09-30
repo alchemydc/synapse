@@ -1,25 +1,47 @@
 # Active Context — Recent Changes (summary)
 
-## Summary
-- LLM prompt improvements
-  - Added strict output rules to Gemini prompts to prevent meta commentary and enforce a single "Participants:" line per topic.
-- LLM output sanitation
-  - Added `src/utils/llm_sanitize.ts` to strip common preamble/acknowledgement lines the model sometimes emits.
-- Participant dedupe
-  - Added `src/utils/participants_dedupe.ts` to collapse duplicate `Participants:` lines inside a topic block as a defensive post-process.
-- Pipeline wiring
-  - Applied sanitizer + dedupe before formatting in `src/main.ts` so Slack output is cleaned prior to Block Kit construction.
-- Forum source labels & linking
-  - Source labels now render as `[Forum Title]` (no "topic" token in label) via `src/utils/source_labels.ts`.
-  - Link injection (`src/utils/source_link_inject.ts`) converts those labels to Slack-friendly links where registry metadata exists; only the Title is hyperlinked in Slack output.
-- Tests
-  - Updated/added unit tests (notably `test/unit/link_and_inject.test.ts`) to reflect the new link format and prompt behavior.
-  - Ran full test suite locally: all tests pass (53/53).
+## Summary (2025-09-30 - Critical Bug Fix)
+
+### CRITICAL: Fixed Slack 50-Block Limit Error
+- **Problem:** Block Kit was creating one section per bullet point, causing 50+ block payloads that exceeded Slack's limit
+- **Solution:** Refactored `buildDigestBlocks()` to group all content under each topic header into single section blocks
+- **Impact:** Reduced block count by ~40-60% (e.g., 10 topics: 63 blocks → 33 blocks)
+- **Result:** Slack posting now works reliably for multi-topic digests
+
+## Summary (2025-09-30 - Morning Session)
+- **Visual Hierarchy Improvements**
+  - Updated Gemini prompts to use markdown H2 headers (`##`) for topic titles
+  - Added emoji-based priority indicators:
+    - 🔴 Security, 💰 Funding, 🏛️ Governance, 💬 Customer Feedback, 📈 Adoption, 🚀 Growth
+  - Enhanced Block Kit formatting with dividers between topic sections for better visual separation
+  - Headers are converted to bold in Slack mrkdwn (Slack doesn't support markdown headers natively)
+
+- **DM Chatter Filtering**
+  - Added `isDMChatter()` filter in `src/utils/filters.ts` to exclude noisy DM-related messages
+  - Filters out phrases like "check your DMs", "DM me", "sent you a DM", etc.
+  - Always applied (no config flag needed)
+
+- **Enhanced LLM Sanitization**
+  - Expanded `src/utils/llm_sanitize.ts` with additional patterns:
+    - "Please provide", "Here is/are", "Okay, I understand"
+    - Removes "disc-topic-N" artifacts from output
+  - Prevents meta-commentary leakage into digests
+
+- **Topic Prioritization**
+  - Created `src/utils/topic_priority.ts` for post-processing topic sorting
+  - Parses topics by headers, detects emoji prefixes, sorts by priority
+  - Priority topics appear first in digest (Security > Funding > Governance > etc.)
+  - Integrated into `src/main.ts` after sanitization/deduplication
+
+- **Tests**
+  - All existing tests pass (53/53)
+  - Changes maintain backward compatibility
 
 ## Rationale
-- Prevents LLM instruction leakage into produced digests.
-- Ensures a single, predictable `Participants:` line per topic for downstream consumers.
-- Improves Slack UX by hyperlinking only the human-visible forum title.
+- Addresses user feedback for better visual segmentation and topic prioritization
+- Reduces noise from DM-related chatter in digests
+- Improves Slack readability with clearer topic boundaries and visual hierarchy
+- Priority topics (security, funding, governance) now surface prominently
 
 ---
 
