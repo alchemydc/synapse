@@ -1,7 +1,6 @@
 // src/services/discourse/index.ts
 import fetch from "node-fetch";
 import pRetry from "p-retry";
-import { registerDiscourseCategory, registerDiscourseTopic } from "../../utils/link_registry";
 
 export interface NormalizedMessage {
   id: string;
@@ -125,19 +124,6 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
       for (const c of cats) {
         if (c && typeof c.id !== "undefined" && typeof c.name === "string") {
           categoryMap[Number(c.id)] = c.name;
-          try {
-            // best-effort slug and URL construction
-            const slug = c.slug || (typeof c.name === "string" ? String(c.name).toLowerCase().replace(/\s+/g, "-") : undefined);
-            registerDiscourseCategory({
-              id: Number(c.id),
-              name: String(c.name),
-              slug,
-              url: slug ? `${discoBase}/c/${slug}/${c.id}` : `${discoBase}/c/${c.id}`,
-              platform: "discourse",
-            });
-          } catch (e) {
-            // ignore registration failures
-          }
         }
       }
     }
@@ -261,18 +247,6 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
       const topicJson: any = topicResp.json;
       const posts = (topicJson && topicJson.post_stream && Array.isArray(topicJson.post_stream.posts) && topicJson.post_stream.posts) || [];
       const categoryId = topicJson?.category_id ?? t?.category_id ?? undefined;
-      try {
-        const topicTitle = topicJson?.title || topicJson?.fancy_title || topicSlug || `topic-${topicId}`;
-        registerDiscourseTopic({
-          id: Number(topicId),
-          title: String(topicTitle).trim(),
-          url: topicUrl,
-          categoryId: categoryId ? Number(categoryId) : undefined,
-          platform: "discourse",
-        });
-      } catch (e) {
-        // ignore registration failures
-      }
       const forum = (() => {
         try {
           return new URL(discoBase).hostname;

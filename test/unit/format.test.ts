@@ -1,6 +1,6 @@
 // test/unit/format.test.ts
 import { describe, it, expect } from "vitest";
-import { formatDigest, normalizeToSlackMrkdwn, buildDigestBlocks, stripLeadingDigestTitle } from "../../src/utils/format";
+import { formatDigest, normalizeToSlackMrkdwn, buildDigestBlocks } from "../../src/utils/format";
 
 describe("formatDigest", () => {
   it("wraps summary in markdown", () => {
@@ -73,11 +73,6 @@ describe("normalizeToSlackMrkdwn", () => {
     const out = normalizeToSlackMrkdwn(md);
     expect(out).toContain("- *Label:* text");
   });
-  it("handles bullets with mismatched asterisks", () => {
-    const md = "- *Key Topics:** text";
-    const out = normalizeToSlackMrkdwn(md);
-    expect(out).toContain("- *Key Topics:* text");
-  });
   it("handles standalone double asterisk labels", () => {
     const md = "**Decisions:**";
     const out = normalizeToSlackMrkdwn(md);
@@ -105,16 +100,6 @@ describe("buildDigestBlocks", () => {
     expect(blocks[1].elements[0].text).toContain("Time window: 2025-08-27 00:00–2025-08-28 00:00 UTC");
     expect(blocks[2].type).toBe("divider");
     expect(blocks[3].type).toBe("section");
-    expect(blocks[3].text.text).toContain("*Summary*");
     expect(blocks[3].text.text).toContain("Some summary text");
-  });
-});
-
-describe("stripLeadingDigestTitle", () => {
-  it("removes leading 'Community Digest' lines", () => {
-    expect(stripLeadingDigestTitle("Community Digest\nKey Topics:")).toBe("Key Topics:");
-    expect(stripLeadingDigestTitle("# Community Digest\nKey Topics:")).toBe("Key Topics:");
-    expect(stripLeadingDigestTitle("*Community Digest*\nKey Topics:")).toBe("Key Topics:");
-    expect(stripLeadingDigestTitle("Community Digest - 2025-08-27\nKey Topics:")).toBe("Key Topics:");
   });
 });

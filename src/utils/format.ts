@@ -1,9 +1,6 @@
 import { logger } from "./logger";
 
-// utils/format.ts
-
 // Normalize generic markdown to Slack mrkdwn
-const DEBUG_SLICE = 1200;
 export function normalizeToSlackMrkdwn(md: string): string {
   // Protect fenced code blocks
   const fences: string[] = [];
@@ -11,6 +8,7 @@ export function normalizeToSlackMrkdwn(md: string): string {
     fences.push(p1);
     return `__FENCE_${fences.length - 1}__`;
   });
+  
   // Protect inline code
   const inlines: string[] = [];
   md = md.replace(/`([^`]+)`/g, (_m, p1) => {
@@ -18,35 +16,25 @@ export function normalizeToSlackMrkdwn(md: string): string {
     return `__INL_${inlines.length - 1}__`;
   });
 
-  // Handle headers that appear mid-line (after other content)
-  // Split them onto a new line first
-  md = md.replace(/^(.+)\s+##\s+(.+)$/gm, "$1\n\n## $2");
-  
   let out = md
     // headings -> bold lines
     .replace(/^#{1,6}\s+(.*)$/gm, "*$1*")
     // bold: **text** and __text__ -> *text*
     .replace(/\*\*([^*]+)\*\*/g, "*$1*")
     .replace(/__([^_]+)__/g, "*$1*")
-    // ensure label lines like **Key Topics:** -> *Key Topics:*
-    .replace(/^\*([^*]+:)\*$/gm, "*$1*")
     // links [text](url) -> <url|text>
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "<$2|$1>")
-    // lists normalization...
+    // lists normalization
     .replace(/^\s*\d+\.\s+/gm, "- ")
     .replace(/^\s*[•*]\s+/gm, "- ")
     .replace(/^\s{1,}-(\s+)/gm, "-$1")
     .replace(/([^\n])\n(-\s)/g, "$1\n\n$2")
-    .replace(/\n{3,}/g, "\n\n")
-    // Normalize label emphasis around colon-terminated labels to single *
-    .replace(/(^|\n)-\s+\*{1,2}([^*\n]+:)\*{1,2}(?=\s|$)/g, "$1- *$2*")
-    .replace(/(^|\n)\*{2}([^*\n]+:)\*{1,2}(?=\s|$)/g, "$1*$2*")
-    .replace(/(^|\n)\*{1,2}([^*\n]+:)\*{2}(?=\s|$)/g, "$1*$2*")
-    .replace(/\*\*([^*\n]+:)\*\*/g, "*$1*");
+    .replace(/\n{3,}/g, "\n\n");
 
   // Restore code blocks and inline code
   out = out.replace(/__FENCE_(\d+)__/g, (_m, i) => "```" + fences[+i] + "```");
   out = out.replace(/__INL_(\d+)__/g, (_m, i) => "`" + inlines[+i] + "`");
+  
   return out;
 }
 
@@ -54,147 +42,33 @@ export function truncateSection(text: string, max = 2800): string {
   return text.length <= max ? text : text.slice(0, max - 1) + "…";
 }
 
-export function stripLeadingDigestTitle(s: string): string {
-  // Remove a leading "Community Digest" line (with optional markdown, date, etc.)
-  return s.replace(
-    /^\s*(?:[#*]+\s*)?Community\s+Digest(?:\s*-\s*\d{4}-\d{2}-\d{2})?\s*:?\s*\n?/i,
-    ""
-  ).replace(/^\*\s*\n/, "").trimStart();
-}
-
 export function buildDigestBlocks(params: {
   summary: string;
-  start: Date; // UTC
-  end: Date;   // UTC
-  dateTitle: string; // YYYY-MM-DD (UTC)
+  start: Date;
+  end: Date;
+  dateTitle: string;
 }): any[][] {
   // Slack limit: 50 blocks per message. Use 45 as safe budget (5 block safety margin)
   const MAX_BLOCKS_PER_MESSAGE = 45;
-  const cleaned = stripLeadingDigestTitle(params.summary);
-  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
-    logger.debug("[DEBUG] buildDigestBlocks.cleaned", cleaned.slice(0, DEBUG_SLICE));
-  }
-  let mrkdwn = normalizeToSlackMrkdwn(cleaned);
-  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
-    logger.debug("[DEBUG] buildDigestBlocks.mrkdwn", mrkdwn.slice(0, DEBUG_SLICE));
-  }
+  const MAX_SECTION_CHARS = Number(process.env.SECTION_CHAR_LIMIT) || 2800;
 
-  // Extract trailing global Participants line (if present) and remove it from mrkdwn so
-  // it can be rendered as a single context block after splitting logic.
-  let trailingParticipants: string | null = null;
-  const participantsMatch = mrkdwn.match(/\n{1,2}Participants:\s*(.+)$/i);
-  if (participantsMatch && participantsMatch.index !== undefined) {
-    trailingParticipants = participantsMatch[1].trim();
-    mrkdwn = mrkdwn.slice(0, participantsMatch.index).trim();
+  let mrkdwn = normalizeToSlackMrkdwn(params.summary);
+  
+  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+    logger.debug("[DEBUG] buildDigestBlocks.mrkdwn.length", mrkdwn.length);
   }
 
   const range = `Time window: ${params.dateTitle} 00:00–${params.end.toISOString().slice(0,10)} 00:00 UTC`;
 
-  const blocks: any[] = [
+  // Start with header blocks
+  const headerBlocks: any[] = [
     { type: "header", text: { type: "plain_text", text: `Community Digest — ${params.dateTitle} (UTC)` } },
     { type: "context", elements: [{ type: "mrkdwn", text: range }] },
     { type: "divider" },
   ];
 
-  // Check if the digest has topic headers (bold lines at start of line)
-  // If no headers found, use legacy paragraph-splitting logic
-  const hasTopicHeaders = /^\*[^*\n]+\*$/m.test(mrkdwn);
-  
-  if (!hasTopicHeaders) {
-    // Legacy path: no clear topic structure, split by paragraphs
-    const MAX_SECTION_CHARS = Number(process.env.SECTION_CHAR_LIMIT) || 2800;
-
-    // Helper to push a section and ensure the very first pushed section is labeled "*Summary*"
-    let firstSectionPrefixed = false;
-    function pushSection(text: string) {
-      if (!text) return;
-      const payload = firstSectionPrefixed ? text : `*Summary*\n${text}`;
-      firstSectionPrefixed = true;
-      blocks.push({ type: "section", text: { type: "mrkdwn", text: payload } });
-    }
-
-    // Helper to append trailing global Participants (if extracted) before returning.
-    function appendTrailingParticipants() {
-      if (trailingParticipants) {
-        blocks.push({
-          type: "context",
-          elements: [{ type: "mrkdwn", text: `Participants: ${trailingParticipants}` }],
-        });
-      }
-    }
-
-    // First, try to split on legacy '---' group delimiter produced by older prompts.
-    const legacyGroups = mrkdwn.split(/\n{2}---\n{2}/).map(s => s.trim()).filter(Boolean);
-    if (legacyGroups.length > 1) {
-      for (const group of legacyGroups) {
-        const groupParts = group.length > MAX_SECTION_CHARS ? group.split(/\n{2,}/).map(p => p.trim()).filter(Boolean) : [group];
-        for (const part of groupParts) {
-          const text = truncateSection(part, MAX_SECTION_CHARS);
-          if (text) {
-            pushSection(text);
-          }
-        }
-        // Insert a divider between legacy groups for readability
-        blocks.push({ type: "divider" });
-      }
-      // remove trailing divider if present
-      if (blocks.length && (blocks[blocks.length - 1] as any).type === "divider") {
-        blocks.pop();
-      }
-      appendTrailingParticipants();
-      return [blocks];
-    }
-
-    // Next, try splitting by paragraphs (two-or-more newlines) to create smaller sections
-    const paragraphs = mrkdwn.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
-    if (paragraphs.length > 1) {
-      for (const para of paragraphs) {
-        // Try to extract a trailing Participants line similar to the normal parsing below.
-        const lines = para.split("\n").map(l => l.trim()).filter(Boolean);
-        let participantsLine: string | null = null;
-        const last = lines[lines.length - 1] || "";
-        const match = last.match(/^\s*Participants:\s*(.+)$/i);
-        if (match) {
-          participantsLine = match[1].trim();
-          lines.pop();
-        }
-
-        const sectionText = truncateSection(lines.join("\n\n"), MAX_SECTION_CHARS);
-        if (sectionText) {
-          pushSection(sectionText);
-        }
-        if (participantsLine) {
-          blocks.push({
-            type: "context",
-            elements: [{ type: "mrkdwn", text: `Participants: ${participantsLine}` }],
-          });
-        }
-      }
-      appendTrailingParticipants();
-      return [blocks];
-    }
-
-    // As a last resort for a single very large blob, soft-split by character windows at safe boundaries.
-    const max = MAX_SECTION_CHARS;
-    let cursor = 0;
-    while (cursor < mrkdwn.length) {
-      const window = mrkdwn.slice(cursor, cursor + max);
-      // Prefer splitting at a paragraph boundary; fall back to raw slice.
-      const br = window.lastIndexOf("\n\n");
-      const part = br > Math.floor(max / 4) ? window.slice(0, br) : window;
-      const text = truncateSection(part, max);
-      if (text) {
-        pushSection(text);
-      }
-      cursor += part.length || max;
-    }
-    appendTrailingParticipants();
-    return [blocks];
-  }
-
-  // Parse topics by detecting bold headers at start of line (pattern: *Topic Title*)
-  // This groups all content (bullets, links, etc.) under each topic into a single section block
-  // to avoid hitting Slack's 50-block limit.
+  // Parse topics by detecting bold headers (converted from H2 markdown)
+  // Pattern matches lines like: *[#channel-name](url)* or *Topic Title*
   const topicPattern = /^\*([^*\n]+)\*$/gm;
   const topics: Array<{ start: number; header: string }> = [];
 
@@ -205,51 +79,38 @@ export function buildDigestBlocks(params: {
 
   if (topics.length === 0) {
     // No topics found, treat entire content as single section
-    const sectionText = truncateSection(mrkdwn);
+    const sectionText = truncateSection(mrkdwn, MAX_SECTION_CHARS);
     if (sectionText) {
-      blocks.push({ type: "section", text: { type: "mrkdwn", text: sectionText } });
+      const blocks = [
+        ...headerBlocks,
+        { type: "section", text: { type: "mrkdwn", text: sectionText } },
+      ];
+      return [blocks];
     }
-    return [blocks];
+    return [headerBlocks];
   }
 
-  // Build topic blocks, splitting into multiple messages when needed
-  const HEADER_BLOCK_COUNT = 3; // header + context + divider
+  // Build blocks for each topic, splitting into multiple messages when needed
+  const HEADER_BLOCK_COUNT = headerBlocks.length;
   const availableBlockBudget = MAX_BLOCKS_PER_MESSAGE - HEADER_BLOCK_COUNT;
   
   const allBlockSets: any[][] = [];
-  let currentBlocks = [...blocks]; // Start with header blocks
+  let currentBlocks = [...headerBlocks];
   
-  // Extract and process content for each topic
   for (let i = 0; i < topics.length; i++) {
     const start = topics[i].start;
     const end = i < topics.length - 1 ? topics[i + 1].start : mrkdwn.length;
     const topicContent = mrkdwn.slice(start, end).trim();
     
-    // Extract trailing Participants line from this topic's content
-    const lines = topicContent.split("\n");
-    let participantsLine: string | null = null;
-    const last = lines[lines.length - 1] || "";
-    const participantsMatch = last.match(/^\s*Participants:\s*(.+)$/i);
-    if (participantsMatch) {
-      participantsLine = participantsMatch[1].trim();
-      lines.pop();
-    }
+    // Create section block for this topic (truncate if needed)
+    const sectionText = truncateSection(topicContent, MAX_SECTION_CHARS);
     
-    // Calculate blocks this topic will add
-    const topicBlocks: any[] = [];
-    const sectionText = truncateSection(lines.join("\n").replace(/\n{2,}/g, "\n"));
-    if (sectionText) {
-      topicBlocks.push({ type: "section", text: { type: "mrkdwn", text: sectionText } });
-    }
-    if (participantsLine) {
-      topicBlocks.push({
-        type: "context",
-        elements: [{ type: "mrkdwn", text: `Participants: ${participantsLine}` }]
-      });
-    }
+    if (!sectionText) continue;
+    
+    const topicBlock = { type: "section", text: { type: "mrkdwn", text: sectionText } };
     
     // Check if adding this topic would exceed the budget
-    const wouldExceedBudget = (currentBlocks.length - HEADER_BLOCK_COUNT) + topicBlocks.length > availableBlockBudget;
+    const wouldExceedBudget = (currentBlocks.length - HEADER_BLOCK_COUNT) + 1 > availableBlockBudget;
     
     if (wouldExceedBudget && currentBlocks.length > HEADER_BLOCK_COUNT) {
       // Save current block set and start a new one
@@ -261,8 +122,13 @@ export function buildDigestBlocks(params: {
       ];
     }
     
-    // Add topic blocks to current set
-    currentBlocks.push(...topicBlocks);
+    // Add topic block and divider
+    currentBlocks.push(topicBlock);
+    
+    // Add divider between topics (but not after the last one in a set)
+    if (i < topics.length - 1) {
+      currentBlocks.push({ type: "divider" });
+    }
   }
   
   // Add final block set
@@ -270,10 +136,10 @@ export function buildDigestBlocks(params: {
     allBlockSets.push(currentBlocks);
   }
   
-  return allBlockSets;
+  return allBlockSets.length > 0 ? allBlockSets : [headerBlocks];
 }
 
-// Legacy fallback
+// Legacy fallback for plain text
 export function formatDigest(summary: string): string {
   return `*Community Digest*\n${summary}`;
 }
