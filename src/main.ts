@@ -1,19 +1,14 @@
 // main.ts
 import dotenv from "dotenv";
 import { loadConfig, Config } from "./config";
-import { fetchMessages } from "./services/discord";
-import { mapDiscordToNormalized } from "./services/discord/adapter";
-import { fetchDiscourseMessages } from "./services/discourse";
-import { summarize, summarizeAttributed } from "./services/llm/gemini";
+import { fetchMessages, MessageDTO } from "./services/discord";
+import { fetchDiscourseMessages, NormalizedMessage } from "./services/discourse";
+import { summarizeDiscordChannel, summarizeDiscourseTopic } from "./services/llm/gemini";
 import { postDigestBlocks } from "./services/slack";
 import { formatDigest, buildDigestBlocks } from "./utils/format";
-import { injectSourceLinks } from "./utils/source_link_inject";
 import { logger } from "./utils/logger";
 import { getUtcDailyWindowFrom } from "./utils/time";
 import { applyMessageFilters } from "./utils/filters";
-import injectMissingParticipants from "./utils/participants_fallback";
-import { clusterMessages } from "./utils/topics";
-import { formatSourceLabel } from "./utils/source_labels";
 
 dotenv.config();
 const config: Config = loadConfig();
@@ -21,36 +16,75 @@ const config: Config = loadConfig();
 const isDebug = config.LOG_LEVEL && config.LOG_LEVEL.toLowerCase() === "debug";
 
 logger.info("Synapse Digest Bot starting...");
-logger.info(`Channels: ${config.DISCORD_CHANNELS.join(", ")}`);
+logger.info(`Discord channels: ${config.DISCORD_CHANNELS.join(", ")}`);
 logger.info(`Window: ${config.DIGEST_WINDOW_HOURS} hours`);
 if (isDebug) logger.debug("[DEBUG] Log level set to debug");
 
 async function run() {
-  // Gather normalized messages from enabled sources
-  let normalizedAll: any[] = [];
+  const summaries: string[] = [];
+  const { start, end, dateTitle } = getUtcDailyWindowFrom(new Date());
 
+  // === DISCORD CHANNELS ===
   if (config.DISCORD_ENABLED) {
-    logger.info("Fetching messages from Discord...");
-    const discordRaw = await fetchMessages(
+    logger.info(`Fetching from ${config.DISCORD_CHANNELS.length} Discord channels...`);
+    
+    const allDiscordMessages = await fetchMessages(
       config.DISCORD_TOKEN,
       config.DISCORD_CHANNELS,
       config.DIGEST_WINDOW_HOURS
     );
-    logger.info(`Fetched ${discordRaw.length} messages from Discord.`);
-    // normalize Discord messages
-    const normalizedDiscord = mapDiscordToNormalized(discordRaw);
-    normalizedAll.push(...normalizedDiscord);
+    
+    logger.info(`Fetched ${allDiscordMessages.length} total Discord messages.`);
+    
+    // Group messages by channel
+    const messagesByChannel = new Map<string, MessageDTO[]>();
+    for (const msg of allDiscordMessages) {
+      if (!messagesByChannel.has(msg.channelId)) {
+        messagesByChannel.set(msg.channelId, []);
+      }
+      messagesByChannel.get(msg.channelId)!.push(msg);
+    }
+    
+    logger.info(`Processing ${messagesByChannel.size} Discord channels...`);
+    
+    for (const [channelId, messages] of messagesByChannel) {
+      const filtered = applyMessageFilters(messages, config);
+      
+      if (filtered.length === 0) {
+        logger.info(`No messages after filtering for channel ${channelId}`);
+        continue;
+      }
+      
+      // Channel name and guildId already fetched by Discord API
+      const channelName = filtered[0].channelName || channelId;
+      const guildId = filtered[0].url?.split('/')[4] || 'unknown';
+      
+      logger.info(`Summarizing ${filtered.length} messages from #${channelName}...`);
+      
+      const summary = await summarizeDiscordChannel(
+        filtered,
+        channelName,
+        channelId,
+        guildId,
+        config
+      );
+      
+      if (summary.trim()) {
+        summaries.push(summary);
+      }
+    }
   } else {
     logger.info("Discord disabled by config.");
   }
 
-  // Discourse: honor explicit enable flag vs incomplete credentials
+  // === DISCOURSE FORUM ===
   if (config.ENABLE_DISCOURSE === false) {
     logger.info("Discourse disabled by flag.");
   } else if (config.DISCOURSE_ENABLED) {
-    logger.info("Discourse config detected — fetching messages from Discourse...");
+    logger.info("Fetching from Discourse forum...");
+    
     try {
-      const discourseMsgs = await fetchDiscourseMessages({
+      const forumMessages = await fetchDiscourseMessages({
         baseUrl: config.DISCOURSE_BASE_URL!,
         apiKey: config.DISCOURSE_API_KEY!,
         apiUser: config.DISCOURSE_API_USERNAME!,
@@ -58,138 +92,87 @@ async function run() {
         maxTopics: config.DISCOURSE_MAX_TOPICS ?? 50,
         lookbackHours: config.DISCOURSE_LOOKBACK_HOURS,
       });
-      logger.info(`Fetched ${discourseMsgs.length} messages from Discourse.`);
-      normalizedAll.push(...discourseMsgs);
+      
+      logger.info(`Fetched ${forumMessages.length} messages from Discourse.`);
+      
+      // Group by topicId
+      const topicGroups = new Map<number, NormalizedMessage[]>();
+      for (const msg of forumMessages) {
+        if (!msg.topicId) continue;
+        if (!topicGroups.has(msg.topicId)) {
+          topicGroups.set(msg.topicId, []);
+        }
+        topicGroups.get(msg.topicId)!.push(msg);
+      }
+      
+      logger.info(`Processing ${topicGroups.size} forum topics...`);
+      
+      for (const [topicId, messages] of topicGroups) {
+        const filtered = applyMessageFilters(messages, config);
+        
+        if (filtered.length === 0) {
+          logger.info(`No messages after filtering for topic ${topicId}`);
+          continue;
+        }
+        
+        // Topic info from first message
+        const topicTitle = filtered[0].topicTitle || `Topic ${topicId}`;
+        const topicUrl = filtered[0].url;
+        
+        logger.info(`Summarizing topic: ${topicTitle}...`);
+        
+        const summary = await summarizeDiscourseTopic(
+          filtered,
+          topicTitle,
+          topicUrl,
+          config
+        );
+        
+        if (summary.trim()) {
+          summaries.push(summary);
+        }
+      }
     } catch (err: any) {
-      logger.warn("Discourse fetch failed; continuing with available messages.", { error: err?.message || err });
+      logger.error("Discourse fetch failed:", err);
+      throw err; // Fail entire run as per user requirement
     }
   } else {
     logger.info("Discourse disabled (incomplete credentials).");
   }
 
-  // Group messages by source identifier (Discord channel or Discourse topic).
-  // For Discord use channelId; for Discourse use a stable `disc-topic-<id>` key.
-  const messagesBySource = new Map<string, any[]>();
-  for (const m of normalizedAll) {
-    const sourceId =
-      m.source === "discord" ? m.channelId : m.topicId ? `disc-topic-${m.topicId}` : m.channelId;
-    if (!messagesBySource.has(sourceId)) {
-      messagesBySource.set(sourceId, []);
-    }
-    messagesBySource.get(sourceId)!.push(m);
+  // === FORMAT AND POST TO SLACK ===
+  if (summaries.length === 0) {
+    logger.info("No summaries generated, skipping Slack post");
+    return;
   }
 
-  logger.info(`Found ${messagesBySource.size} message groups by source.`);
-
-  const allSummaries: string[] = [];
-  let totalFiltered = 0;
-  let totalSummarizedGroups = 0;
-
-  // Process each group independently: filter, (optional) cluster, summarize
-  for (const [sourceId, group] of messagesBySource.entries()) {
-    // Map to candidateMessages shape and inject source label into channelId
-    const candidateGroup = group.map((m) => {
-      const sourceLabel = formatSourceLabel({
-        source: m.source,
-        channelId: m.channelId,
-        forum: m.forum,
-        categoryId: m.categoryId,
-      });
-      return {
-        id: m.id,
-        channelId: `${sourceLabel} ${m.channelId || ""}`.trim(),
-        author: m.author,
-        content: m.content,
-        createdAt: m.createdAt,
-        url: m.url,
-      };
-    });
-
-    // Ensure chronological order for clustering assumptions
-    candidateGroup.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
-    // Apply existing filters to this group's messages
-    const filteredGroup = applyMessageFilters(candidateGroup, config);
-    if (!filteredGroup || filteredGroup.length === 0) {
-      if (isDebug) logger.debug("Skipping group with no messages after filters", { sourceId });
-      continue;
-    }
-    totalFiltered += filteredGroup.length;
-
-    // Summarize per-group (attributed or not)
-    let groupSummary = "";
-    if (config.ATTRIBUTION_ENABLED) {
-      if (isDebug) logger.debug("Attribution enabled for group", { sourceId, count: filteredGroup.length });
-      const clustersForGroup = clusterMessages(filteredGroup, config.TOPIC_GAP_MINUTES);
-      if (isDebug) logger.debug("Built clusters for group", { sourceId, clusterCount: clustersForGroup.length });
-      groupSummary = await summarizeAttributed(clustersForGroup, config);
-
-      if (config.ATTRIBUTION_FALLBACK_ENABLED) {
-        if (isDebug) logger.debug("Applying attribution fallback for group", { sourceId });
-        groupSummary = injectMissingParticipants(groupSummary, clustersForGroup, config.MAX_TOPIC_PARTICIPANTS);
-      }
-    } else {
-      groupSummary = await summarize(filteredGroup, config);
-    }
-
-    if (groupSummary && groupSummary.trim().length > 0) {
-      allSummaries.push(groupSummary);
-      totalSummarizedGroups++;
-    }
-  }
-
-  // Combine all per-source summaries into one digest
-  let summary: string = allSummaries.join("\n\n---\n\n");
-
-  if (isDebug) {
-    logger.debug("[DEBUG] total.groups.summarized", totalSummarizedGroups);
-    logger.debug("[DEBUG] total.filtered.messages", totalFiltered);
-    logger.debug("[DEBUG] summary.raw.len", summary.length);
-    logger.debug("[DEBUG] summary.raw.preview", summary.slice(0, 1200));
-  }
-
-  // Block Kit integration
-  logger.info("Formatting digest...");
-  const lookbackMs = config.DIGEST_WINDOW_HOURS * 60 * 60 * 1000;
-  const candidate = new Date(Date.now() - lookbackMs); // now - 24h
-  const { start, end, dateTitle } = getUtcDailyWindowFrom(candidate);
-
-  // Inject links into the LLM-generated summary where registry metadata exists (configurable).
-  const linkedSummary = config.LINKED_SOURCE_LABELS === false ? summary : injectSourceLinks(summary);
-
-  // Sanitize and dedupe LLM output before formatting for Slack
-  const sanitize = (await import("./utils/llm_sanitize")).sanitizeLLMOutput;
-  const dedupe = (await import("./utils/participants_dedupe")).collapseDuplicateParticipants;
-  let cleaned = sanitize(linkedSummary);
-  cleaned = dedupe(cleaned);
-
-  // Sort topics by priority (emoji-based)
-  const { sortAndReconstructSummary } = await import("./utils/topic_priority");
-  const sortedSummary = sortAndReconstructSummary(cleaned);
+  logger.info(`Formatting ${summaries.length} summaries for Slack...`);
+  const combinedSummary = summaries.join('\n\n---\n\n');
 
   const blockSets = buildDigestBlocks({
-    summary: sortedSummary,
+    summary: combinedSummary,
     start,
     end,
     dateTitle,
   });
-  const fallback = formatDigest(cleaned);
+
+  const fallback = formatDigest(combinedSummary);
 
   logger.info("Posting digest to Slack...");
   if (blockSets.length > 1) {
     logger.info(`Digest split into ${blockSets.length} messages due to block count`);
   }
-  
+
   for (let i = 0; i < blockSets.length; i++) {
     const blocks = blockSets[i];
-    const messageFallback = blockSets.length > 1 
+    const messageFallback = blockSets.length > 1
       ? `${fallback} (Part ${i + 1}/${blockSets.length})`
       : fallback;
-    
+
     logger.info(`Posting message ${i + 1}/${blockSets.length}...`);
     await postDigestBlocks(blocks, messageFallback, config);
   }
-  
+
   logger.info("Pipeline complete.");
 }
 

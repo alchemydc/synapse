@@ -1,12 +1,15 @@
 // utils/filters.ts
 import { MessageDTO } from "../services/discord";
+import { NormalizedMessage } from "../services/discourse";
 import { Config } from "../config";
 
-export function isCommand(msg: MessageDTO): boolean {
+type FilterableMessage = MessageDTO | NormalizedMessage;
+
+export function isCommand(msg: FilterableMessage): boolean {
   return /^(!|\/)/.test(msg.content.trim());
 }
 
-export function isLinkOnly(msg: MessageDTO): boolean {
+export function isLinkOnly(msg: FilterableMessage): boolean {
   const content = msg.content.trim();
   // Bare URL
   if (/^https?:\/\/\S+$/.test(content)) return true;
@@ -17,7 +20,7 @@ export function isLinkOnly(msg: MessageDTO): boolean {
   return false;
 }
 
-export function isDMChatter(msg: MessageDTO): boolean {
+export function isDMChatter(msg: FilterableMessage): boolean {
   const content = msg.content.toLowerCase();
   // Match common DM-related phrases
   const dmPatterns = [
@@ -33,7 +36,7 @@ export function isDMChatter(msg: MessageDTO): boolean {
   return dmPatterns.some(pattern => pattern.test(content));
 }
 
-export function applyMessageFilters(messages: MessageDTO[], config: Config): MessageDTO[] {
+export function applyMessageFilters<T extends FilterableMessage>(messages: T[], config: Config): T[] {
   return messages.filter((m) => {
     if (m.content.trim().length < config.MIN_MESSAGE_LENGTH) return false;
     if (config.EXCLUDE_COMMANDS && isCommand(m)) return false;

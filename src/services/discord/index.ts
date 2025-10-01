@@ -1,7 +1,6 @@
 // services/discord/index.ts
 import { Client, GatewayIntentBits, TextChannel } from "discord.js";
 import pRetry from "p-retry";
-import { registerDiscordChannel, ChannelMeta } from "../../utils/link_registry";
 import { logger } from "../../utils/logger";
 
 export interface MessageDTO {
@@ -39,28 +38,6 @@ export async function fetchMessages(
 
     for (const channelId of channelIds) {
     const channel = await client.channels.fetch(channelId);
-    // Register channel metadata (best-effort) for link injection elsewhere
-    if (channel && channel instanceof TextChannel) {
-      try {
-        const meta: ChannelMeta = {
-          id: channelId,
-          name: (channel as TextChannel).name,
-          guildId: (channel as TextChannel).guildId,
-          url: `https://discord.com/channels/${(channel as TextChannel).guildId}/${channelId}`,
-          platform: "discord",
-        };
-        registerDiscordChannel(meta);
-        if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
-          try {
-            logger.debug("[DEBUG] registerDiscordChannel", { id: meta.id, name: meta.name, guildId: meta.guildId, urlPresent: Boolean(meta.url) });
-          } catch (e) {
-            // ignore logging failures
-          }
-        }
-      } catch (e) {
-        // ignore registration failures
-      }
-    }
     if (!channel || !(channel instanceof TextChannel)) continue;
 
     let lastId: string | undefined = undefined;

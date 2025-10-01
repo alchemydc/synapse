@@ -2,10 +2,10 @@
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 import { Config } from "../../config";
 import { MessageDTO } from "../discord";
+import { NormalizedMessage } from "../discourse";
 import { logger } from "../../utils/logger";
-import { TopicCluster, formatParticipantList } from "../../utils/topics";
 
-function formatMessageLine(msg: MessageDTO): string {
+function formatMessageLine(msg: MessageDTO | NormalizedMessage): string {
   const date = new Date(msg.createdAt);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const dateStr = date.toLocaleString("en-US", {
@@ -17,98 +17,12 @@ function formatMessageLine(msg: MessageDTO): string {
     hour12: false,
     timeZone: tz,
   });
-  return `[${msg.channelId} @ ${dateStr} ${tz}] ${msg.content}`;
+  return `[${dateStr} ${tz}] ${msg.author}: ${msg.content}`;
 }
 
-function buildPrompt(messages: MessageDTO[]): string {
-  // Build a concise, instruction-forward prompt and include strict output rules
-  const parts: string[] = [];
-
-  parts.push("Community Digest:");
-  parts.push("Summarize the following Discord messages. For each topic produce concise bullets.");
-  parts.push("Sections: Decisions, Action Items, Links.");
-  parts.push("Sections (when present): Decisions, Action Items, Links. Start each topic with a single title line; do not emit a separate 'Key Topics' heading.");
-  parts.push("If any messages contain URLs or links, extract them and list them under a 'Shared Links' heading for that topic.");
-  parts.push(
-    "Preserve any leading bracketed source labels (e.g. [Discord #channel], [Forum category]) exactly as provided. Treat the first pair of square brackets at the start of each message as immutable."
-  );
-  parts.push("");
-  parts.push(...messages.map((m, i) => `[${i + 1}] ${formatMessageLine(m)}`));
-  parts.push("");
-  // Delimit input end and instruct the model to only emit digest output
-  parts.push("=== INPUT END ===");
-  parts.push("Produce digest now.");
-  parts.push("STRICT OUTPUT RULES:");
-  parts.push("- OUTPUT ONLY the digest content. Do NOT output acknowledgements, confirmations, or any commentary.");
-  parts.push("- Do NOT restate instructions, do NOT say 'I understand' or similar phrases.");
-  parts.push("- Do NOT indicate that input was truncated or that you are waiting for more input.");
-  parts.push("BEGIN DIGEST:");
-  parts.push("");
-
-  return parts.join("\n");
-}
-
-/**
- * Build a prompt that includes per-topic clusters and participant lists.
- * @param clusters TopicCluster[]
- * @param config Config (for token budgeting notes)
- */
-function buildAttributedPrompt(clusters: TopicCluster[], config: Config): string {
-  const parts: string[] = [];
-
-  parts.push("Community Digest (Attributed):");
-  parts.push("Summarize the following topic clusters derived from Discord and forum messages.");
-  parts.push("");
-  parts.push("FORMATTING RULES:");
-  parts.push("- Use markdown H2 headers (##) for each topic title.");
-  parts.push("- Prepend emoji to headers for priority topics:");
-  parts.push("  - 🔴 for Security (security, vulnerability, exploit, attack, breach, CVE)");
-  parts.push("  - 💰 for Funding (funding, grant, budget, investment, treasury)");
-  parts.push("  - 🏛️ for Governance (governance, proposal, vote, election, council)");
-  parts.push("  - 💬 for Customer Feedback (feedback, complaint, feature request, bug report)");
-  parts.push("  - 📈 for Adoption (adoption, onboarding, new users, integration, partnership)");
-  parts.push("  - 🚀 for Growth (growth, expansion, scaling, milestone, achievement)");
-  parts.push("- For each topic, produce concise bullets.");
-  parts.push("- If there are Decisions, Action Items, or Links, label those sections accordingly.");
-  parts.push("- If any messages contain URLs or links, extract them under a 'Shared Links' heading.");
-  parts.push("- Do NOT include an extra 'Key Topics' heading.");
-  parts.push(
-    "- Preserve the leading bracketed source label exactly as provided (e.g., [Discord #channel], [Forum category]). Place it on the line immediately after the topic header."
-  );
-  parts.push("");
-  parts.push("Input topics (chronological):");
-  parts.push("");
-
-  for (const c of clusters) {
-    const participants = formatParticipantList(c.participants, config.MAX_TOPIC_PARTICIPANTS);
-    parts.push(`Topic ${c.id}:`);
-    parts.push(`Channel: ${c.channelId}`);
-    parts.push(`Participants: ${participants || "none"}`);
-    parts.push("Messages:");
-    for (let i = 0; i < c.messages.length; i++) {
-      parts.push(`[${i + 1}] ${formatMessageLine(c.messages[i])}`);
-    }
-    parts.push(""); // spacer between topics
-  }
-
-  // Instruct the model to emit exactly one Participants line per topic block
-  parts.push("=== INPUT END ===");
-  parts.push("Produce digest now.");
-  parts.push("STRICT OUTPUT RULES:");
-  parts.push("- For each topic, after the bullets, output EXACTLY ONE line: 'Participants: name1, name2' (omit if none).");
-  parts.push("- Do NOT repeat 'Participants' lines after each bullet or per-bullet; only one per topic.");
-  parts.push("- OUTPUT ONLY the digest content. No acknowledgements, no explanations, no meta commentary.");
-  parts.push("- Do NOT invent participants.");
-  parts.push("BEGIN DIGEST:");
-  parts.push("");
-  parts.push(`Notes: Limit output to concise bullets. If a topic contains no substantive content, omit it. Max summary token budget: ${config.MAX_SUMMARY_TOKENS}.`);
-
-  return parts.join("\n");
-}
-
-function truncateMessages(messages: MessageDTO[], maxChars: number): MessageDTO[] {
+function truncateMessages(messages: (MessageDTO | NormalizedMessage)[], maxChars: number): (MessageDTO | NormalizedMessage)[] {
   let total = 0;
-  const out: MessageDTO[] = [];
+  const out: (MessageDTO | NormalizedMessage)[] = [];
   for (const m of messages) {
     if (total + (m.content ? m.content.length : 0) > maxChars) break;
     out.push(m);
@@ -118,47 +32,27 @@ function truncateMessages(messages: MessageDTO[], maxChars: number): MessageDTO[
 }
 
 /**
- * truncateClusters - reduce messages across clusters to fit a global character budget.
- * Returns new clusters with messages trimmed in chronological order until budget exhausted.
- * Participants are preserved from original cluster (TODO: recompute from truncated messages).
+ * Summarize messages from a single Discord channel.
+ * Returns markdown with clickable header: ## [#channel-name](url)
  */
-function truncateClusters(clusters: TopicCluster[], maxChars: number): TopicCluster[] {
-  if (!clusters || clusters.length === 0) return [];
-  let total = 0;
-  const result: TopicCluster[] = [];
-
-  outer: for (const c of clusters) {
-    const keptMessages: MessageDTO[] = [];
-    for (const m of c.messages) {
-      const len = m.content ? m.content.length : 0;
-      if (total + len > maxChars) {
-        if (keptMessages.length === 0) {
-          // No room for any message in this cluster; stop processing further clusters.
-          break outer;
-        } else {
-          // Partial cluster preserved; stop after this cluster.
-          result.push({ ...c, messages: keptMessages, participants: c.participants });
-          break outer;
-        }
-      }
-      keptMessages.push(m);
-      total += len;
-    }
-    if (keptMessages.length > 0) {
-      result.push({ ...c, messages: keptMessages, participants: c.participants });
-    }
-    if (total >= maxChars) break;
-  }
-
-  return result;
-}
-
-export async function summarize(messages: MessageDTO[], config: Config): Promise<string> {
+export async function summarizeDiscordChannel(
+  messages: MessageDTO[],
+  channelName: string,
+  channelId: string,
+  guildId: string,
+  config: Config
+): Promise<string> {
   if (!config.GEMINI_MODEL || config.GEMINI_MODEL.trim() === "") {
     logger.error("GEMINI_MODEL is empty; check CI env or repository Variables export.");
     throw new Error("GEMINI_MODEL is required");
   }
-  logger.info("Gemini init", { model: config.GEMINI_MODEL, maxTokens: config.MAX_SUMMARY_TOKENS });
+
+  const channelUrl = `https://discord.com/channels/${guildId}/${channelId}`;
+  logger.info("Summarizing Discord channel", { 
+    channel: channelName, 
+    messageCount: messages.length,
+    model: config.GEMINI_MODEL 
+  });
 
   const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY || "");
   const model: GenerativeModel = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
@@ -167,19 +61,36 @@ export async function summarize(messages: MessageDTO[], config: Config): Promise
   const maxChars = config.MAX_SUMMARY_TOKENS * 4;
   const truncated = truncateMessages(messages, maxChars);
 
-  const prompt = buildPrompt(truncated);
+  const parts: string[] = [];
+  parts.push("Discord Channel Digest:");
+  parts.push("");
+  parts.push("Summarize the following Discord channel messages.");
+  parts.push("");
+  parts.push("FORMATTING RULES:");
+  parts.push(`- Start with a clickable H2 header: ## [#${channelName}](${channelUrl})`);
+  parts.push("- Identify important conversations naturally (security, funding, governance, performance, adoption, customer feedback, growth, etc.)");
+  parts.push("- For each significant topic, provide concise bullets");
+  parts.push("- Include participant names inline for significant discussions (e.g., 'Alice and Bob discussed X')");
+  parts.push("- If there are decisions, action items, or shared links, label those sections");
+  parts.push("- OUTPUT ONLY the digest content starting with the H2 header");
+  parts.push("- Do NOT output acknowledgements, confirmations, or meta-commentary");
+  parts.push("");
+  parts.push("Messages:");
+  parts.push("");
+  for (let i = 0; i < truncated.length; i++) {
+    parts.push(`[${i + 1}] ${formatMessageLine(truncated[i])}`);
+  }
+  parts.push("");
+  parts.push("=== INPUT END ===");
+  parts.push("BEGIN DIGEST:");
+  parts.push("");
 
-  // Debug: log prompt size and estimated token usage to detect budget exceedance
+  const prompt = parts.join("\n");
+
   if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
-    try {
-      const promptLen = String(prompt).length;
-      const estTokens = Math.ceil(promptLen / 4);
-      logger.debug("[DEBUG] Gemini.prompt.len", promptLen);
-      logger.debug("[DEBUG] Gemini.prompt.estimatedTokens", estTokens);
-      logger.debug("[DEBUG] Gemini.maxTokens", config.MAX_SUMMARY_TOKENS);
-    } catch (e) {
-      // ignore logging failures
-    }
+    const promptLen = String(prompt).length;
+    const estTokens = Math.ceil(promptLen / 4);
+    logger.debug("[DEBUG] Discord summarize prompt", { len: promptLen, estTokens });
   }
 
   const result = await model.generateContent({
@@ -194,45 +105,63 @@ export async function summarize(messages: MessageDTO[], config: Config): Promise
 }
 
 /**
- * summarizeAttributed - accepts topic clusters (with participants) and asks the LLM
- * to include Participants lines per topic-derived block.
+ * Summarize messages from a single Discourse topic (original post + replies).
+ * Returns markdown with clickable header: ## [Topic Title](url)
  */
-export async function summarizeAttributed(clusters: TopicCluster[], config: Config): Promise<string> {
+export async function summarizeDiscourseTopic(
+  messages: NormalizedMessage[],
+  topicTitle: string,
+  topicUrl: string,
+  config: Config
+): Promise<string> {
   if (!config.GEMINI_MODEL || config.GEMINI_MODEL.trim() === "") {
     logger.error("GEMINI_MODEL is empty; check CI env or repository Variables export.");
     throw new Error("GEMINI_MODEL is required");
   }
-  logger.info("Gemini attributed init", { model: config.GEMINI_MODEL, maxTokens: config.MAX_SUMMARY_TOKENS });
+
+  logger.info("Summarizing Discourse topic", { 
+    topic: topicTitle, 
+    messageCount: messages.length,
+    model: config.GEMINI_MODEL 
+  });
 
   const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY || "");
   const model: GenerativeModel = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
 
-  // Build prompt from clusters and truncate to token budget.
+  // Truncate to fit token budget (roughly 4 chars per token)
   const maxChars = config.MAX_SUMMARY_TOKENS * 4;
-  const truncatedClusters = truncateClusters(clusters, maxChars);
-  let prompt = buildAttributedPrompt(truncatedClusters, config);
+  const truncated = truncateMessages(messages, maxChars);
 
-  // If truncation occurred, append a short note so the LLM knows input was truncated.
-  const truncatedOccurred =
-    truncatedClusters.length !== clusters.length ||
-    truncatedClusters.some((tc, idx) => (clusters[idx] ? tc.messages.length !== clusters[idx].messages.length : true));
-  if (truncatedOccurred) {
-    prompt += "\n\n[Note: input truncated to fit token budget]";
+  const parts: string[] = [];
+  parts.push("Forum Topic Digest:");
+  parts.push("");
+  parts.push("Summarize the following forum topic and its replies.");
+  parts.push("");
+  parts.push("FORMATTING RULES:");
+  parts.push(`- Start with a clickable H2 header: ## [${topicTitle}](${topicUrl})`);
+  parts.push("- Identify important conversations naturally (security, funding, governance, performance, adoption, customer feedback, growth, etc.)");
+  parts.push("- Provide concise bullets covering the main discussion points");
+  parts.push("- Include participant names inline for significant contributions (e.g., 'Charlie proposed X')");
+  parts.push("- If there are decisions, action items, or shared links, label those sections");
+  parts.push("- OUTPUT ONLY the digest content starting with the H2 header");
+  parts.push("- Do NOT output acknowledgements, confirmations, or meta-commentary");
+  parts.push("");
+  parts.push("Messages:");
+  parts.push("");
+  for (let i = 0; i < truncated.length; i++) {
+    parts.push(`[${i + 1}] ${formatMessageLine(truncated[i])}`);
   }
+  parts.push("");
+  parts.push("=== INPUT END ===");
+  parts.push("BEGIN DIGEST:");
+  parts.push("");
 
-  // Debug: log prompt size and estimated token usage for attributed prompt
+  const prompt = parts.join("\n");
+
   if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
-    try {
-      const promptLen = String(prompt).length;
-      const estTokens = Math.ceil(promptLen / 4);
-      logger.debug("[DEBUG] Gemini.attributedPrompt.len", promptLen);
-      logger.debug("[DEBUG] Gemini.attributedPrompt.estimatedTokens", estTokens);
-      logger.debug("[DEBUG] Gemini.maxTokens", config.MAX_SUMMARY_TOKENS);
-      logger.debug("[DEBUG] Gemini.attributed.truncatedOccurred", truncatedOccurred);
-      logger.debug("[DEBUG] Gemini.attributed.inputClusters", truncatedClusters.length);
-    } catch (e) {
-      // ignore logging failures
-    }
+    const promptLen = String(prompt).length;
+    const estTokens = Math.ceil(promptLen / 4);
+    logger.debug("[DEBUG] Discourse summarize prompt", { len: promptLen, estTokens });
   }
 
   const result = await model.generateContent({
@@ -246,5 +175,5 @@ export async function summarizeAttributed(clusters: TopicCluster[], config: Conf
   return result.response.text();
 }
 
-// For testing
-export { buildPrompt, truncateMessages, formatMessageLine, buildAttributedPrompt };
+// Export helper functions for testing
+export { formatMessageLine, truncateMessages };
