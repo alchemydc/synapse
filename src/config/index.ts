@@ -80,10 +80,6 @@ const ConfigSchema = z.object({
     z.number().int().min(1)
   ).default(6),
 
-  ATTRIBUTION_FALLBACK_ENABLED: z.preprocess(
-    toBool,
-    z.boolean()
-  ).default(true),
 
   // Per-source enable flags (keep defaults but allow explicit unset)
   ENABLE_DISCORD: z.preprocess(toBool, z.boolean()).optional().default(true),
@@ -124,7 +120,6 @@ export type Config = {
   ATTRIBUTION_ENABLED: boolean;
   TOPIC_GAP_MINUTES: number;
   MAX_TOPIC_PARTICIPANTS: number;
-  ATTRIBUTION_FALLBACK_ENABLED: boolean;
 
   // Discourse
   DISCOURSE_BASE_URL?: string;
@@ -194,7 +189,6 @@ export function loadConfig(): Config {
     attributionEnabled: config.ATTRIBUTION_ENABLED,
     topicGapMinutes: config.TOPIC_GAP_MINUTES,
     maxTopicParticipants: config.MAX_TOPIC_PARTICIPANTS,
-    attributionFallbackEnabled: config.ATTRIBUTION_FALLBACK_ENABLED,
     enableFlags: {
       enableDiscord: raw.ENABLE_DISCORD,
       enableDiscourse: raw.ENABLE_DISCOURSE,
