@@ -7,35 +7,23 @@ exports.formatDigest = formatDigest;
 const logger_1 = require("./logger");
 // Normalize generic markdown to Slack mrkdwn
 function normalizeToSlackMrkdwn(md) {
-    // Protect fenced code blocks
-    const fences = [];
-    md = md.replace(/```([\s\S]*?)```/g, (_m, p1) => {
-        fences.push(p1);
-        return `__FENCE_${fences.length - 1}__`;
-    });
-    // Protect inline code
-    const inlines = [];
-    md = md.replace(/`([^`]+)`/g, (_m, p1) => {
-        inlines.push(p1);
-        return `__INL_${inlines.length - 1}__`;
-    });
-    let out = md
-        // headings -> bold lines
-        .replace(/^#{1,6}\s+(.*)$/gm, "*$1*")
-        // bold: **text** and __text__ -> *text*
-        .replace(/\*\*([^*]+)\*\*/g, "*$1*")
-        .replace(/__([^_]+)__/g, "*$1*")
-        // links [text](url) -> <url|text>
+    // Convert common Markdown into Slack mrkdwn in a conservative, non-destructive way.
+    // We intentionally avoid placeholder collisions and aggressive transforms.
+    let out = String(md)
+        // Links: [text](https://...) -> <https://...|text>
         .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "<$2|$1>")
-        // lists normalization
+        // Headings: convert to bold since Slack doesn't support header levels
+        .replace(/^#{1,6}\s+(.*)$/gm, "*$1*")
+        // Bold: **text** -> *text*
+        .replace(/\*\*([^*]+)\*\*/g, "*$1*")
+        // Note: avoid transforming __text__ to prevent collisions with any literal underscores
+        // Lists normalization
         .replace(/^\s*\d+\.\s+/gm, "- ")
         .replace(/^\s*[•*]\s+/gm, "- ")
         .replace(/^\s{1,}-(\s+)/gm, "-$1")
         .replace(/([^\n])\n(-\s)/g, "$1\n\n$2")
+        // Collapse excessive blank lines
         .replace(/\n{3,}/g, "\n\n");
-    // Restore code blocks and inline code
-    out = out.replace(/__FENCE_(\d+)__/g, (_m, i) => "```" + fences[+i] + "```");
-    out = out.replace(/__INL_(\d+)__/g, (_m, i) => "`" + inlines[+i] + "`");
     return out;
 }
 function truncateSection(text, max = 2800) {

@@ -80,6 +80,7 @@ async function summarizeDiscordChannel(messages, channelName, channelId, guildId
         const promptLen = String(prompt).length;
         const estTokens = Math.ceil(promptLen / 4);
         logger_1.logger.debug("[DEBUG] Discord summarize prompt", { len: promptLen, estTokens });
+        logger_1.logger.debug("LLM prompt (debug)", { prompt });
     }
     const result = await model.generateContent({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -88,7 +89,11 @@ async function summarizeDiscordChannel(messages, channelName, channelId, guildId
             temperature: 0.2,
         },
     });
-    return result.response.text();
+    const out = result.response.text();
+    if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+        logger_1.logger.debug("LLM response (truncated)", { text: out.length > 5000 ? out.slice(0, 5000) + "...[truncated]" : out, length: out.length });
+    }
+    return out;
 }
 /**
  * Summarize messages from a single Discourse topic (original post + replies).
@@ -137,6 +142,7 @@ async function summarizeDiscourseTopic(messages, topicTitle, topicUrl, config) {
         const promptLen = String(prompt).length;
         const estTokens = Math.ceil(promptLen / 4);
         logger_1.logger.debug("[DEBUG] Discourse summarize prompt", { len: promptLen, estTokens });
+        logger_1.logger.debug("LLM prompt (debug)", { prompt });
     }
     const result = await model.generateContent({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -145,5 +151,9 @@ async function summarizeDiscourseTopic(messages, topicTitle, topicUrl, config) {
             temperature: 0.2,
         },
     });
-    return result.response.text();
+    const out = result.response.text();
+    if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+        logger_1.logger.debug("LLM response (truncated)", { text: out.length > 5000 ? out.slice(0, 5000) + "...[truncated]" : out, length: out.length });
+    }
+    return out;
 }

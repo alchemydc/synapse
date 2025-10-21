@@ -10,6 +10,17 @@ example from a forum summary:
 "-   INL_17 suggested potential collaboration with Zechub, who may already manage INL_18, to integrate additional features.
 -   INL_19 supported the idea of collaboration to develop new features for the site."
 
+***I suspect this bug is coming from src/utils/format.ts rather than from the LLM***
+Haven't been able to reproduce it in debug mode so it must be occuring while prepping the mrkdown to post to slack
+```
+// Protect inline code
+  const inlines: string[] = [];
+  md = md.replace(/`([^`]+)`/g, (_m, p1) => {
+    inlines.push(p1);
+    return `__INL_${inlines.length - 1}__`;
+  });
+```
+
 ## redundant summarization of forum posts
 seeing an issue where forum threads are being re-summarized when they receive replies.  perhaps we need a more sophisticated approach to avoid re-summarizing entire forum threads every time a thread receives a new response.  unclear best way to approach this without keeping some kind of state server side.
 
