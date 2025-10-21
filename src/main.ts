@@ -59,6 +59,20 @@ async function run() {
       const channelName = filtered[0].channelName || channelId;
       const guildId = filtered[0].url?.split('/')[4] || 'unknown';
       
+      if (isDebug) {
+        logger.debug("Fetched messages for channel (debug)", {
+          channelId,
+          channelName,
+          count: filtered.length,
+          messages: filtered.map(m => ({
+            id: m.id,
+            author: m.author,
+            createdAt: m.createdAt,
+            content: (m.content || "").slice(0, 500)
+          }))
+        });
+      }
+      
       logger.info(`Summarizing ${filtered.length} messages from #${channelName}...`);
       
       const summary = await summarizeDiscordChannel(
@@ -113,6 +127,20 @@ async function run() {
         if (filtered.length === 0) {
           logger.info(`No messages after filtering for topic ${topicId}`);
           continue;
+        }
+        
+        if (isDebug) {
+          logger.debug("Fetched messages for topic (debug)", {
+            topicId,
+            topicTitle: filtered[0].topicTitle,
+            count: filtered.length,
+            messages: filtered.map(m => ({
+              id: m.id,
+              author: m.author,
+              createdAt: m.createdAt,
+              content: (m.content || "").slice(0, 500)
+            }))
+          });
         }
         
         // Topic info from first message

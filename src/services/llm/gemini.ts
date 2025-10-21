@@ -91,6 +91,7 @@ export async function summarizeDiscordChannel(
     const promptLen = String(prompt).length;
     const estTokens = Math.ceil(promptLen / 4);
     logger.debug("[DEBUG] Discord summarize prompt", { len: promptLen, estTokens });
+    logger.debug("LLM prompt (debug)", { prompt });
   }
 
   const result = await model.generateContent({
@@ -101,7 +102,11 @@ export async function summarizeDiscordChannel(
     },
   });
 
-  return result.response.text();
+  const out = result.response.text();
+  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+    logger.debug("LLM response (truncated)", { text: out.length > 5000 ? out.slice(0, 5000) + "...[truncated]" : out, length: out.length });
+  }
+  return out;
 }
 
 /**
@@ -162,6 +167,7 @@ export async function summarizeDiscourseTopic(
     const promptLen = String(prompt).length;
     const estTokens = Math.ceil(promptLen / 4);
     logger.debug("[DEBUG] Discourse summarize prompt", { len: promptLen, estTokens });
+    logger.debug("LLM prompt (debug)", { prompt });
   }
 
   const result = await model.generateContent({
@@ -172,7 +178,11 @@ export async function summarizeDiscourseTopic(
     },
   });
 
-  return result.response.text();
+  const out = result.response.text();
+  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
+    logger.debug("LLM response (truncated)", { text: out.length > 5000 ? out.slice(0, 5000) + "...[truncated]" : out, length: out.length });
+  }
+  return out;
 }
 
 // Export helper functions for testing

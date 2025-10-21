@@ -48,7 +48,6 @@ const ConfigSchema = zod_1.z.object({
     ATTRIBUTION_ENABLED: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(false),
     TOPIC_GAP_MINUTES: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).default(20),
     MAX_TOPIC_PARTICIPANTS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).default(6),
-    ATTRIBUTION_FALLBACK_ENABLED: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
     // Per-source enable flags (keep defaults but allow explicit unset)
     ENABLE_DISCORD: zod_1.z.preprocess(toBool, zod_1.z.boolean()).optional().default(true),
     ENABLE_DISCOURSE: zod_1.z.preprocess(toBool, zod_1.z.boolean()).optional().default(true),
@@ -107,7 +106,6 @@ function loadConfig() {
         attributionEnabled: config.ATTRIBUTION_ENABLED,
         topicGapMinutes: config.TOPIC_GAP_MINUTES,
         maxTopicParticipants: config.MAX_TOPIC_PARTICIPANTS,
-        attributionFallbackEnabled: config.ATTRIBUTION_FALLBACK_ENABLED,
         enableFlags: {
             enableDiscord: raw.ENABLE_DISCORD,
             enableDiscourse: raw.ENABLE_DISCOURSE,

@@ -22,7 +22,10 @@ This document captures the current implementation status and short-term plan for
   - Soft-splitting very large blobs so per-section content remains under SECTION_CHAR_LIMIT.
   - Paragraph-splitting and preservation of trailing Participants context blocks.
 - Fixed TypeScript issues surfaced during refactor and validated changes.
-- All unit tests pass locally: 53/53.
+- Replaced placeholder-based Markdown→Slack conversion in `src/utils/format.ts` with a conservative, non-destructive converter to avoid `__INL__`/`__FENCE__` placeholder collisions that surfaced as visible `INL_*` tokens in digests.
+  - Converter changes: links -> <url|text>, headings -> bold, **bold** -> *bold*, list normalization; avoids unsafe transformations on `__...__`.
+  - Updated unit tests (`test/unit/format.test.ts`) accordingly.
+- All unit tests pass locally: 47/47.
 
 ## Current work / Next steps
 - Monitor Slack rendering in staging runs (DRY_RUN preview then live) to confirm link rendering and multi-part posting behavior in real Slack channels.
