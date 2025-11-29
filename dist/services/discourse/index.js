@@ -3,10 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.stripHtml = stripHtml;
 exports.fetchDiscourseMessages = fetchDiscourseMessages;
 // src/services/discourse/index.ts
 const node_fetch_1 = __importDefault(require("node-fetch"));
 const p_retry_1 = __importDefault(require("p-retry"));
+const logger_1 = require("../../utils/logger");
 /**
  * Strip minimal HTML to recover readable plain text.
  * Not perfect, but sufficient for digest input.
@@ -18,6 +20,8 @@ function stripHtml(html) {
     return html
         .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
         .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
+        // remove discourse quotes to avoid misattribution
+        .replace(/<aside[^>]+class=["']quote["'][\s\S]*?<\/aside>/gi, "")
         .replace(/<\/?[^>]+(>|$)/g, "")
         .replace(/\s+/g, " ")
         .trim();
@@ -57,7 +61,7 @@ async function fetchJSON(url, headers) {
  * Returns messages sorted ascending by createdAt.
  */
 async function fetchDiscourseMessages(opts) {
-    const { baseUrl, apiKey, apiUser, windowHours, maxTopics = 50, lookbackHours } = opts;
+    const { baseUrl, apiKey, apiUser, windowHours, maxTopics = 50, lookbackHours, debugVerbose = false } = opts;
     const discoBase = baseUrl.replace(/\/+$/, "");
     const headers = {
         "Api-Key": apiKey || "",
@@ -68,10 +72,6 @@ async function fetchDiscourseMessages(opts) {
     const now = Date.now();
     const lookHours = lookbackHours ?? windowHours;
     const since = now - lookHours * 60 * 60 * 1000;
-    // Optional verbose debug for Discourse fetch internals
-    const discoDebug = (process.env.DISCOURSE_DEBUG_VERBOSE || "").toLowerCase();
-    const DISCOURSE_DEBUG_VERBOSE = ["true", "1", "yes"].includes(discoDebug);
-    const LOG_DEBUG = (process.env.LOG_LEVEL || "").toLowerCase() === "debug";
     const debugCounters = {
         topicsExamined: 0,
         topicsSkippedOld: 0,
@@ -83,8 +83,8 @@ async function fetchDiscourseMessages(opts) {
         postsSkippedEmpty: 0,
         postsSkippedInvalidDate: 0,
     };
-    if (DISCOURSE_DEBUG_VERBOSE || LOG_DEBUG) {
-        console.info(`Discourse fetch: since=${new Date(since).toISOString()} now=${new Date(now).toISOString()} lookHours=${lookHours}`);
+    if (debugVerbose) {
+        logger_1.logger.debug(`Discourse fetch: since=${new Date(since).toISOString()} now=${new Date(now).toISOString()} lookHours=${lookHours}`);
     }
     // Try to load category names to improve source labels / readability
     let categoryMap = {};
@@ -98,13 +98,13 @@ async function fetchDiscourseMessages(opts) {
                 }
             }
         }
-        if (DISCOURSE_DEBUG_VERBOSE) {
-            console.info(`Loaded ${Object.keys(categoryMap).length} categories from ${discoBase}/categories.json`);
+        if (debugVerbose) {
+            logger_1.logger.debug(`Loaded ${Object.keys(categoryMap).length} categories from ${discoBase}/categories.json`);
         }
     }
     catch (err) {
-        if (DISCOURSE_DEBUG_VERBOSE) {
-            console.warn(`Failed to fetch categories.json: ${err?.message || err}`);
+        if (debugVerbose) {
+            logger_1.logger.warn(`Failed to fetch categories.json: ${err?.message || err}`);
         }
     }
     const messages = [];
@@ -115,8 +115,8 @@ async function fetchDiscourseMessages(opts) {
     const seenTopicIds = new Set();
     while (!stopPaging) {
         const url = page === 0 ? `${discoBase}/latest.json` : `${discoBase}/latest.json?page=${page}`;
-        if (DISCOURSE_DEBUG_VERBOSE) {
-            console.info(`Fetching topics page ${page} url=${url}`);
+        if (debugVerbose) {
+            logger_1.logger.debug(`Fetching topics page ${page} url=${url}`);
         }
         let latestResp;
         try {
@@ -132,7 +132,7 @@ async function fetchDiscourseMessages(opts) {
         }
         catch (err) {
             // If page fetch fails, log and stop paging
-            console.warn(`Failed to fetch ${url}: ${err?.message || err}. Stopping pagination.`);
+            logger_1.logger.warn(`Failed to fetch ${url}: ${err?.message || err}. Stopping pagination.`);
             break;
         }
         const data = latestResp.json;
@@ -143,32 +143,28 @@ async function fetchDiscourseMessages(opts) {
             break;
         for (const t of topics) {
             // count examined topics
-            if (DISCOURSE_DEBUG_VERBOSE)
+            if (debugVerbose)
                 debugCounters.topicsExamined++;
             // Fields vary; try common ones
             const lastPosted = t.last_posted_at || t.created_at || t.last_posted_at;
             const lastTs = lastPosted ? Date.parse(lastPosted) : 0;
-            if (DISCOURSE_DEBUG_VERBOSE) {
-                console.info(`Topic candidate: id=${t.id}, lastPosted=${lastPosted}, lastTs=${isNaN(lastTs) ? "invalid" : new Date(lastTs).toISOString()}`);
+            if (debugVerbose) {
+                logger_1.logger.debug(`Topic candidate: id=${t.id}, lastPosted=${lastPosted}, lastTs=${isNaN(lastTs) ? "invalid" : new Date(lastTs).toISOString()}`);
             }
             const isPinned = !!(t.pinned || t.pinned_globally || t.pinned_until);
             if (lastTs < since) {
                 if (isPinned) {
-                    if (DISCOURSE_DEBUG_VERBOSE) {
+                    if (debugVerbose) {
                         debugCounters.topicsSkippedOldPinned++;
-                    }
-                    if (LOG_DEBUG) {
-                        console.info(`Skipping pinned old topic: id=${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()}`);
+                        logger_1.logger.debug(`Skipping pinned old topic: id=${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()}`);
                     }
                     // skip pinned old topics but continue scanning the rest of this page
                     continue;
                 }
                 // Non-pinned old topic: mark cutoff for stopping after this page
-                if (DISCOURSE_DEBUG_VERBOSE) {
+                if (debugVerbose) {
                     debugCounters.topicsSkippedOld++;
-                }
-                if (LOG_DEBUG) {
-                    console.info(`Marking old cutoff at topic ${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()} < since ${new Date(since).toISOString()}`);
+                    logger_1.logger.debug(`Marking old cutoff at topic ${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()} < since ${new Date(since).toISOString()}`);
                 }
                 reachedOldCutoff = true;
                 continue;
@@ -198,7 +194,7 @@ async function fetchDiscourseMessages(opts) {
                 });
             }
             catch (err) {
-                console.warn(`Failed to fetch topic ${topicId}: ${err?.message || err}. Skipping topic.`);
+                logger_1.logger.warn(`Failed to fetch topic ${topicId}: ${err?.message || err}. Skipping topic.`);
                 continue;
             }
             const topicJson = topicResp.json;
@@ -214,50 +210,48 @@ async function fetchDiscourseMessages(opts) {
             })();
             for (const p of posts) {
                 try {
-                    if (DISCOURSE_DEBUG_VERBOSE)
+                    if (debugVerbose)
                         debugCounters.postsExamined++;
                     // skip deleted/hidden posts
                     if (p?.deleted_at) {
-                        if (DISCOURSE_DEBUG_VERBOSE) {
+                        if (debugVerbose) {
                             debugCounters.postsSkippedDeleted++;
-                            console.info(`Skipping deleted post in topic ${topicId}, postId=${p?.id}`);
+                            logger_1.logger.debug(`Skipping deleted post in topic ${topicId}, postId=${p?.id}`);
                         }
                         continue;
                     }
                     const createdAt = p.created_at || p.posted_at || p.created || null;
                     if (!createdAt) {
-                        if (DISCOURSE_DEBUG_VERBOSE) {
+                        if (debugVerbose) {
                             debugCounters.postsSkippedInvalidDate++;
-                            console.info(`Skipping post with missing createdAt in topic ${topicId}, postId=${p?.id}`);
+                            logger_1.logger.debug(`Skipping post with missing createdAt in topic ${topicId}, postId=${p?.id}`);
                         }
                         continue;
                     }
                     const createdTs = Date.parse(createdAt);
                     if (isNaN(createdTs)) {
-                        if (DISCOURSE_DEBUG_VERBOSE) {
+                        if (debugVerbose) {
                             debugCounters.postsSkippedInvalidDate++;
-                            console.info(`Skipping post with invalid date '${createdAt}' in topic ${topicId}, postId=${p?.id}`);
+                            logger_1.logger.debug(`Skipping post with invalid date '${createdAt}' in topic ${topicId}, postId=${p?.id}`);
                         }
                         continue;
                     }
                     if (createdTs < since) {
-                        if (DISCOURSE_DEBUG_VERBOSE) {
+                        if (debugVerbose) {
                             debugCounters.postsSkippedOld++;
-                        }
-                        if (LOG_DEBUG) {
-                            console.info(`Skipping old post in topic ${topicId}, postId=${p?.id}, createdAt=${createdAt}`);
+                            logger_1.logger.debug(`Skipping old post in topic ${topicId}, postId=${p?.id}, createdAt=${createdAt}`);
                         }
                         continue;
                     }
                     const content = p.raw ? String(p.raw) : stripHtml(String(p.cooked || ""));
                     if (!content || String(content).trim() === "") {
-                        if (DISCOURSE_DEBUG_VERBOSE) {
+                        if (debugVerbose) {
                             debugCounters.postsSkippedEmpty++;
-                            console.info(`Skipping empty content post in topic ${topicId}, postId=${p?.id}`);
+                            logger_1.logger.debug(`Skipping empty content post in topic ${topicId}, postId=${p?.id}`);
                         }
                         continue;
                     }
-                    if (DISCOURSE_DEBUG_VERBOSE)
+                    if (debugVerbose)
                         debugCounters.postsKept++;
                     const author = (p.username || p.name || p.user_name || (p.user && p.user.username) || "unknown");
                     const postId = p.id ?? p.post_id ?? undefined;
@@ -280,15 +274,15 @@ async function fetchDiscourseMessages(opts) {
                 }
                 catch (err) {
                     // If a single post normalization fails, skip it but continue processing others.
-                    console.warn(`Skipping post in topic ${topicId} due to error: ${err?.message || err}`);
+                    logger_1.logger.warn(`Skipping post in topic ${topicId} due to error: ${err?.message || err}`);
                     continue;
                 }
             }
         }
         // If we encountered an old non-pinned topic, stop after finishing current page
         if (reachedOldCutoff) {
-            if (DISCOURSE_DEBUG_VERBOSE)
-                console.info("Reached old cutoff on this page; will stop paging after this page.");
+            if (debugVerbose)
+                logger_1.logger.debug("Reached old cutoff on this page; will stop paging after this page.");
             stopPaging = true;
         }
         // Safety: if topics list indicates no further pages, stop
@@ -298,8 +292,8 @@ async function fetchDiscourseMessages(opts) {
         page++;
     }
     // If verbose debug, log counters
-    if (typeof DISCOURSE_DEBUG_VERBOSE !== "undefined" && DISCOURSE_DEBUG_VERBOSE) {
-        console.info("Discourse fetch debug counters:", debugCounters);
+    if (debugVerbose) {
+        logger_1.logger.debug("Discourse fetch debug counters:", debugCounters);
     }
     // sort ascending by createdAt
     messages.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));

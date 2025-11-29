@@ -100,12 +100,10 @@ export async function summarizeDiscordChannel(
 
   const prompt = parts.join("\n");
 
-  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
-    const promptLen = String(prompt).length;
-    const estTokens = Math.ceil(promptLen / 4);
-    logger.debug("[DEBUG] Discord summarize prompt", { len: promptLen, estTokens });
-    logger.debug("LLM prompt (debug)", { prompt });
-  }
+  const promptLen = String(prompt).length;
+  const estTokens = Math.ceil(promptLen / 4);
+  logger.debug("[DEBUG] Discord summarize prompt", { len: promptLen, estTokens });
+  logger.debug("LLM prompt (debug)", { prompt });
 
   const result = await model.generateContent({
     contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -116,9 +114,7 @@ export async function summarizeDiscordChannel(
   });
 
   const out = result.response.text();
-  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
-    logger.debug("LLM response (truncated)", { text: out.length > 5000 ? out.slice(0, 5000) + "...[truncated]" : out, length: out.length });
-  }
+  logger.debug("LLM response (truncated)", { text: out.length > 5000 ? out.slice(0, 5000) + "...[truncated]" : out, length: out.length });
 
   const header = `## [#${channelName}](${channelUrl})`;
   return `${header}\n\n${out.trim()}`;
@@ -177,12 +173,10 @@ export async function summarizeDiscourseTopic(
 
   const prompt = parts.join("\n");
 
-  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
-    const promptLen = String(prompt).length;
-    const estTokens = Math.ceil(promptLen / 4);
-    logger.debug("[DEBUG] Discourse summarize prompt", { len: promptLen, estTokens });
-    logger.debug("LLM prompt (debug)", { prompt });
-  }
+  const promptLen = String(prompt).length;
+  const estTokens = Math.ceil(promptLen / 4);
+  logger.debug("[DEBUG] Discourse summarize prompt", { len: promptLen, estTokens });
+  logger.debug("LLM prompt (debug)", { prompt });
 
   const result = await model.generateContent({
     contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -193,9 +187,7 @@ export async function summarizeDiscourseTopic(
   });
 
   const out = result.response.text();
-  if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
-    logger.debug("LLM response (truncated)", { text: out.length > 5000 ? out.slice(0, 5000) + "...[truncated]" : out, length: out.length });
-  }
+  logger.debug("LLM response (truncated)", { text: out.length > 5000 ? out.slice(0, 5000) + "...[truncated]" : out, length: out.length });
 
   const header = `## [${topicTitle}](${topicUrl})`;
   return `${header}\n\n${out.trim()}`;
