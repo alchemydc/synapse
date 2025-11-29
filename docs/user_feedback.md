@@ -1,3 +1,15 @@
+# feedback from Pili 24 nov 2025
+forum topic: Zebra 3.0.0 Release: Our Most Feature-Rich Release Ever
+This discussion focuses on performance and operational improvements for running the
+Zebra node.
+
+in this bullet, the user 'outgoing-doze' was actually the one making the inquiry, not pili
+- Systemd Service Integration: pili inquired about running Zebra as a systemd service for production-level quality and asked if documentation for this option was planned.
+- pili confirmed that documentation for running Zebra as a systemd service exists and provided detailed setup instructions for Ubuntu/Debian, including steps for building the binary, copying it, placing the service file, starting, checking status, and uninstalling.
+- Action Item: pili acknowledged that the systemd service documentation should be improved and made more accessible.
+
+
+
 # feedback from DC 20 oct 2025
 ## attribution problems
 Seeing attribution to INL_0, INL_1 in discord AND forum summaries, which is erroneous.

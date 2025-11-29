@@ -24,9 +24,21 @@ function truncateMessages(messages: (MessageDTO | NormalizedMessage)[], maxChars
   let total = 0;
   const out: (MessageDTO | NormalizedMessage)[] = [];
   for (const m of messages) {
-    if (total + (m.content ? m.content.length : 0) > maxChars) break;
-    out.push(m);
-    total += m.content ? m.content.length : 0;
+    const contentLen = m.content ? m.content.length : 0;
+    const remaining = maxChars - total;
+
+    if (remaining <= 0) break;
+
+    if (contentLen <= remaining) {
+      out.push(m);
+      total += contentLen;
+    } else {
+      // Message is too big to fit entirely. Truncate it to fill the remaining space.
+      const truncatedContent = m.content ? m.content.slice(0, remaining) + "..." : "";
+      out.push({ ...m, content: truncatedContent });
+      total += truncatedContent.length;
+      break;
+    }
   }
   return out;
 }
@@ -48,17 +60,19 @@ export async function summarizeDiscordChannel(
   }
 
   const channelUrl = `https://discord.com/channels/${guildId}/${channelId}`;
-  logger.info("Summarizing Discord channel", { 
-    channel: channelName, 
+  logger.info("Summarizing Discord channel", {
+    channel: channelName,
     messageCount: messages.length,
-    model: config.GEMINI_MODEL 
+    model: config.GEMINI_MODEL
   });
 
   const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY || "");
   const model: GenerativeModel = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
 
   // Truncate to fit token budget (roughly 4 chars per token)
-  const maxChars = config.MAX_SUMMARY_TOKENS * 4;
+  // Truncate to fit token budget (roughly 4 chars per token)
+  // Cap at 1500 chars to avoid empty responses from Gemini Flash 2.5
+  const maxChars = Math.min(config.MAX_SUMMARY_TOKENS * 4, 1500);
   const truncated = truncateMessages(messages, maxChars);
 
   const parts: string[] = [];
@@ -67,15 +81,14 @@ export async function summarizeDiscordChannel(
   parts.push("Summarize the following Discord channel messages.");
   parts.push("");
   parts.push("FORMATTING RULES:");
-  parts.push(`- Start with a clickable H2 header: ## [#${channelName}](${channelUrl})`);
   parts.push("- Identify important conversations naturally (security, funding, governance, performance, adoption, customer feedback, growth, etc.)");
   parts.push("- For each significant topic, provide concise bullets");
   parts.push("- Include participant names inline for significant discussions (e.g., 'Alice and Bob discussed X')");
   parts.push("- If there are decisions, action items, or shared links, label those sections");
-  parts.push("- OUTPUT ONLY the digest content starting with the H2 header");
   parts.push("- Do NOT output acknowledgements, confirmations, or meta-commentary");
   parts.push("");
   parts.push("Messages:");
+  parts.push("");
   parts.push("");
   for (let i = 0; i < truncated.length; i++) {
     parts.push(`[${i + 1}] ${formatMessageLine(truncated[i])}`);
@@ -106,7 +119,9 @@ export async function summarizeDiscordChannel(
   if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
     logger.debug("LLM response (truncated)", { text: out.length > 5000 ? out.slice(0, 5000) + "...[truncated]" : out, length: out.length });
   }
-  return out;
+
+  const header = `## [#${channelName}](${channelUrl})`;
+  return `${header}\n\n${out.trim()}`;
 }
 
 /**
@@ -124,17 +139,18 @@ export async function summarizeDiscourseTopic(
     throw new Error("GEMINI_MODEL is required");
   }
 
-  logger.info("Summarizing Discourse topic", { 
-    topic: topicTitle, 
+  logger.info("Summarizing Discourse topic", {
+    topic: topicTitle,
     messageCount: messages.length,
-    model: config.GEMINI_MODEL 
+    model: config.GEMINI_MODEL
   });
 
   const genAI = new GoogleGenerativeAI(config.GEMINI_API_KEY || "");
   const model: GenerativeModel = genAI.getGenerativeModel({ model: config.GEMINI_MODEL });
 
   // Truncate to fit token budget (roughly 4 chars per token)
-  const maxChars = config.MAX_SUMMARY_TOKENS * 4;
+  // Cap at 1500 chars to avoid empty responses from Gemini Flash 2.5
+  const maxChars = Math.min(config.MAX_SUMMARY_TOKENS * 4, 1500);
   const truncated = truncateMessages(messages, maxChars);
 
   const parts: string[] = [];
@@ -143,12 +159,10 @@ export async function summarizeDiscourseTopic(
   parts.push("Summarize the following forum topic and its replies.");
   parts.push("");
   parts.push("FORMATTING RULES:");
-  parts.push(`- Start with a clickable H2 header: ## [${topicTitle}](${topicUrl})`);
   parts.push("- Identify important conversations naturally (security, funding, governance, performance, adoption, customer feedback, growth, etc.)");
   parts.push("- Provide concise bullets covering the main discussion points");
   parts.push("- Include participant names inline for significant contributions (e.g., 'Charlie proposed X')");
   parts.push("- If there are decisions, action items, or shared links, label those sections");
-  parts.push("- OUTPUT ONLY the digest content starting with the H2 header");
   parts.push("- Do NOT output acknowledgements, confirmations, or meta-commentary");
   parts.push("");
   parts.push("Messages:");
@@ -182,7 +196,9 @@ export async function summarizeDiscourseTopic(
   if (process.env.LOG_LEVEL && process.env.LOG_LEVEL.toLowerCase() === "debug") {
     logger.debug("LLM response (truncated)", { text: out.length > 5000 ? out.slice(0, 5000) + "...[truncated]" : out, length: out.length });
   }
-  return out;
+
+  const header = `## [${topicTitle}](${topicUrl})`;
+  return `${header}\n\n${out.trim()}`;
 }
 
 // Export helper functions for testing
