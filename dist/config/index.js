@@ -48,14 +48,12 @@ const ConfigSchema = zod_1.z.object({
     // Per-source enable flags (keep defaults but allow explicit unset)
     ENABLE_DISCORD: zod_1.z.preprocess(toBool, zod_1.z.boolean()).optional().default(true),
     ENABLE_DISCOURSE: zod_1.z.preprocess(toBool, zod_1.z.boolean()).optional().default(true),
-    LINKED_SOURCE_LABELS: zod_1.z.preprocess(toBool, zod_1.z.boolean()).optional(),
     // Discourse-related optional settings
     DISCOURSE_BASE_URL: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
     DISCOURSE_API_KEY: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
     DISCOURSE_API_USERNAME: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
     DISCOURSE_LOOKBACK_HOURS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).optional(),
     DISCOURSE_MAX_TOPICS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).optional(),
-    DISCOURSE_DEBUG_VERBOSE: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(false),
 });
 const logger_1 = require("../utils/logger");
 function normalizeBaseUrl(raw) {
@@ -76,13 +74,11 @@ function loadConfig() {
         DISCORD_CHANNELS: configBaseChannels,
         ENABLE_DISCORD: raw.ENABLE_DISCORD,
         ENABLE_DISCOURSE: raw.ENABLE_DISCOURSE,
-        LINKED_SOURCE_LABELS: typeof raw.LINKED_SOURCE_LABELS !== "undefined" ? raw.LINKED_SOURCE_LABELS : true,
         DISCOURSE_BASE_URL: discoBase,
         DISCOURSE_API_KEY: raw.DISCOURSE_API_KEY,
         DISCOURSE_API_USERNAME: raw.DISCOURSE_API_USERNAME,
         DISCOURSE_LOOKBACK_HOURS: raw.DISCOURSE_LOOKBACK_HOURS,
         DISCOURSE_MAX_TOPICS: raw.DISCOURSE_MAX_TOPICS,
-        DISCOURSE_DEBUG_VERBOSE: raw.DISCOURSE_DEBUG_VERBOSE,
         // derived enablement
         DISCORD_ENABLED: Boolean(raw.ENABLE_DISCORD && raw.DISCORD_TOKEN && raw.DISCORD_CHANNELS),
         DISCOURSE_ENABLED: Boolean(raw.ENABLE_DISCOURSE && discoBase && raw.DISCOURSE_API_KEY && raw.DISCOURSE_API_USERNAME),
@@ -106,7 +102,6 @@ function loadConfig() {
             enableDiscord: raw.ENABLE_DISCORD,
             enableDiscourse: raw.ENABLE_DISCOURSE,
         },
-        linkedSourceLabels: config.LINKED_SOURCE_LABELS,
         discord: {
             enabled: config.DISCORD_ENABLED,
             channelsCount: config.DISCORD_CHANNELS.length,

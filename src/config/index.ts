@@ -71,7 +71,7 @@ const ConfigSchema = z.object({
   // Per-source enable flags (keep defaults but allow explicit unset)
   ENABLE_DISCORD: z.preprocess(toBool, z.boolean()).optional().default(true),
   ENABLE_DISCOURSE: z.preprocess(toBool, z.boolean()).optional().default(true),
-  LINKED_SOURCE_LABELS: z.preprocess(toBool, z.boolean()).optional(),
+
 
   // Discourse-related optional settings
   DISCOURSE_BASE_URL: z.preprocess(toStr, z.string()).optional(),
@@ -88,10 +88,7 @@ const ConfigSchema = z.object({
     z.number().int().min(1)
   ).optional(),
 
-  DISCOURSE_DEBUG_VERBOSE: z.preprocess(
-    toBool,
-    z.boolean()
-  ).default(false),
+
 });
 
 export type Config = {
@@ -117,11 +114,11 @@ export type Config = {
   DISCOURSE_API_USERNAME?: string;
   DISCOURSE_LOOKBACK_HOURS?: number;
   DISCOURSE_MAX_TOPICS?: number;
-  DISCOURSE_DEBUG_VERBOSE: boolean;
+
 
   ENABLE_DISCORD: boolean;
   ENABLE_DISCOURSE: boolean;
-  LINKED_SOURCE_LABELS?: boolean;
+
 
   // derived
   DISCORD_ENABLED: boolean;
@@ -150,13 +147,13 @@ export function loadConfig(): Config {
     DISCORD_CHANNELS: configBaseChannels,
     ENABLE_DISCORD: raw.ENABLE_DISCORD,
     ENABLE_DISCOURSE: raw.ENABLE_DISCOURSE,
-    LINKED_SOURCE_LABELS: typeof raw.LINKED_SOURCE_LABELS !== "undefined" ? raw.LINKED_SOURCE_LABELS : true,
+
     DISCOURSE_BASE_URL: discoBase,
     DISCOURSE_API_KEY: raw.DISCOURSE_API_KEY,
     DISCOURSE_API_USERNAME: raw.DISCOURSE_API_USERNAME,
     DISCOURSE_LOOKBACK_HOURS: raw.DISCOURSE_LOOKBACK_HOURS,
     DISCOURSE_MAX_TOPICS: raw.DISCOURSE_MAX_TOPICS,
-    DISCOURSE_DEBUG_VERBOSE: raw.DISCOURSE_DEBUG_VERBOSE,
+
     // derived enablement
     DISCORD_ENABLED: Boolean(raw.ENABLE_DISCORD && raw.DISCORD_TOKEN && raw.DISCORD_CHANNELS),
     DISCOURSE_ENABLED:
@@ -182,7 +179,7 @@ export function loadConfig(): Config {
       enableDiscord: raw.ENABLE_DISCORD,
       enableDiscourse: raw.ENABLE_DISCOURSE,
     },
-    linkedSourceLabels: config.LINKED_SOURCE_LABELS,
+
     discord: {
       enabled: config.DISCORD_ENABLED,
       channelsCount: config.DISCORD_CHANNELS.length,

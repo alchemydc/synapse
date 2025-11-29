@@ -27,15 +27,15 @@ async function run() {
   // === DISCORD CHANNELS ===
   if (config.DISCORD_ENABLED) {
     logger.info(`Fetching from ${config.DISCORD_CHANNELS.length} Discord channels...`);
-    
+
     const allDiscordMessages = await fetchMessages(
       config.DISCORD_TOKEN,
       config.DISCORD_CHANNELS,
       config.DIGEST_WINDOW_HOURS
     );
-    
+
     logger.info(`Fetched ${allDiscordMessages.length} total Discord messages.`);
-    
+
     // Group messages by channel
     const messagesByChannel = new Map<string, MessageDTO[]>();
     for (const msg of allDiscordMessages) {
@@ -44,21 +44,21 @@ async function run() {
       }
       messagesByChannel.get(msg.channelId)!.push(msg);
     }
-    
+
     logger.info(`Processing ${messagesByChannel.size} Discord channels...`);
-    
+
     for (const [channelId, messages] of messagesByChannel) {
       const filtered = applyMessageFilters(messages, config);
-      
+
       if (filtered.length === 0) {
         logger.info(`No messages after filtering for channel ${channelId}`);
         continue;
       }
-      
+
       // Channel name and guildId already fetched by Discord API
       const channelName = filtered[0].channelName || channelId;
       const guildId = filtered[0].url?.split('/')[4] || 'unknown';
-      
+
       if (isDebug) {
         logger.debug("Fetched messages for channel (debug)", {
           channelId,
@@ -72,9 +72,9 @@ async function run() {
           }))
         });
       }
-      
+
       logger.info(`Summarizing ${filtered.length} messages from #${channelName}...`);
-      
+
       const summary = await summarizeDiscordChannel(
         filtered,
         channelName,
@@ -82,7 +82,7 @@ async function run() {
         guildId,
         config
       );
-      
+
       if (summary.trim()) {
         summaries.push(summary);
       }
@@ -96,7 +96,7 @@ async function run() {
     logger.info("Discourse disabled by flag.");
   } else if (config.DISCOURSE_ENABLED) {
     logger.info("Fetching from Discourse forum...");
-    
+
     try {
       const forumMessages = await fetchDiscourseMessages({
         baseUrl: config.DISCOURSE_BASE_URL!,
@@ -106,9 +106,9 @@ async function run() {
         maxTopics: config.DISCOURSE_MAX_TOPICS ?? 50,
         lookbackHours: config.DISCOURSE_LOOKBACK_HOURS,
       });
-      
+
       logger.info(`Fetched ${forumMessages.length} messages from Discourse.`);
-      
+
       // Group by topicId
       const topicGroups = new Map<number, NormalizedMessage[]>();
       for (const msg of forumMessages) {
@@ -118,17 +118,17 @@ async function run() {
         }
         topicGroups.get(msg.topicId)!.push(msg);
       }
-      
+
       logger.info(`Processing ${topicGroups.size} forum topics...`);
-      
+
       for (const [topicId, messages] of topicGroups) {
         const filtered = applyMessageFilters(messages, config);
-        
+
         if (filtered.length === 0) {
           logger.info(`No messages after filtering for topic ${topicId}`);
           continue;
         }
-        
+
         if (isDebug) {
           logger.debug("Fetched messages for topic (debug)", {
             topicId,
@@ -142,20 +142,20 @@ async function run() {
             }))
           });
         }
-        
+
         // Topic info from first message
         const topicTitle = filtered[0].topicTitle || `Topic ${topicId}`;
         const topicUrl = filtered[0].url;
-        
+
         logger.info(`Summarizing topic: ${topicTitle}...`);
-        
+
         const summary = await summarizeDiscourseTopic(
           filtered,
           topicTitle,
           topicUrl,
           config
         );
-        
+
         if (summary.trim()) {
           summaries.push(summary);
         }
@@ -175,7 +175,7 @@ async function run() {
   }
 
   logger.info(`Formatting ${summaries.length} summaries for Slack...`);
-  const combinedSummary = summaries.join('\n\n---\n\n');
+  const combinedSummary = summaries.join('\n\n');
 
   const blockSets = buildDigestBlocks({
     summary: combinedSummary,

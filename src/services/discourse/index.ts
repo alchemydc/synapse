@@ -74,7 +74,6 @@ type FetchDiscourseOptions = {
   windowHours: number;
   maxTopics?: number; // safety cap
   lookbackHours?: number; // optional override
-  debugVerbose?: boolean;
 };
 
 /**
@@ -87,7 +86,7 @@ type FetchDiscourseOptions = {
  * Returns messages sorted ascending by createdAt.
  */
 export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promise<NormalizedMessage[]> {
-  const { baseUrl, apiKey, apiUser, windowHours, maxTopics = 50, lookbackHours, debugVerbose = false } = opts;
+  const { baseUrl, apiKey, apiUser, windowHours, maxTopics = 50, lookbackHours } = opts;
   const discoBase = baseUrl.replace(/\/+$/, "");
   const headers = {
     "Api-Key": apiKey || "",
@@ -112,9 +111,7 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
     postsSkippedInvalidDate: 0,
   };
 
-  if (debugVerbose) {
-    logger.debug(`Discourse fetch: since=${new Date(since).toISOString()} now=${new Date(now).toISOString()} lookHours=${lookHours}`);
-  }
+  logger.debug(`Discourse fetch: since=${new Date(since).toISOString()} now=${new Date(now).toISOString()} lookHours=${lookHours}`);
 
   // Try to load category names to improve source labels / readability
   let categoryMap: Record<number, string> = {};
@@ -128,13 +125,9 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
         }
       }
     }
-    if (debugVerbose) {
-      logger.debug(`Loaded ${Object.keys(categoryMap).length} categories from ${discoBase}/categories.json`);
-    }
+    logger.debug(`Loaded ${Object.keys(categoryMap).length} categories from ${discoBase}/categories.json`);
   } catch (err: any) {
-    if (debugVerbose) {
-      logger.warn(`Failed to fetch categories.json: ${err?.message || err}`);
-    }
+    logger.warn(`Failed to fetch categories.json: ${err?.message || err}`);
   }
 
   const messages: NormalizedMessage[] = [];
@@ -146,9 +139,7 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
 
   while (!stopPaging) {
     const url = page === 0 ? `${discoBase}/latest.json` : `${discoBase}/latest.json?page=${page}`;
-    if (debugVerbose) {
-      logger.debug(`Fetching topics page ${page} url=${url}`);
-    }
+    logger.debug(`Fetching topics page ${page} url=${url}`);
 
     let latestResp;
     try {
@@ -180,29 +171,23 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
 
     for (const t of topics) {
       // count examined topics
-      if (debugVerbose) debugCounters.topicsExamined++;
+      debugCounters.topicsExamined++;
       // Fields vary; try common ones
       const lastPosted = t.last_posted_at || t.created_at || t.last_posted_at;
       const lastTs = lastPosted ? Date.parse(lastPosted) : 0;
-      if (debugVerbose) {
-        logger.debug(`Topic candidate: id=${t.id}, lastPosted=${lastPosted}, lastTs=${isNaN(lastTs) ? "invalid" : new Date(lastTs).toISOString()}`);
-      }
+      logger.debug(`Topic candidate: id=${t.id}, lastPosted=${lastPosted}, lastTs=${isNaN(lastTs) ? "invalid" : new Date(lastTs).toISOString()}`);
       const isPinned = !!(t.pinned || t.pinned_globally || t.pinned_until);
       if (lastTs < since) {
         if (isPinned) {
-          if (debugVerbose) {
-            debugCounters.topicsSkippedOldPinned++;
-            logger.debug(`Skipping pinned old topic: id=${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()}`);
-          }
+          debugCounters.topicsSkippedOldPinned++;
+          logger.debug(`Skipping pinned old topic: id=${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()}`);
           // skip pinned old topics but continue scanning the rest of this page
           continue;
         }
 
         // Non-pinned old topic: mark cutoff for stopping after this page
-        if (debugVerbose) {
-          debugCounters.topicsSkippedOld++;
-          logger.debug(`Marking old cutoff at topic ${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()} < since ${new Date(since).toISOString()}`);
-        }
+        debugCounters.topicsSkippedOld++;
+        logger.debug(`Marking old cutoff at topic ${t.id} lastTs ${isNaN(lastTs) ? lastPosted : new Date(lastTs).toISOString()} < since ${new Date(since).toISOString()}`);
         reachedOldCutoff = true;
         continue;
       }
@@ -254,53 +239,43 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
 
       for (const p of posts) {
         try {
-          if (debugVerbose) debugCounters.postsExamined++;
+          debugCounters.postsExamined++;
 
           // skip deleted/hidden posts
           if (p?.deleted_at) {
-            if (debugVerbose) {
-              debugCounters.postsSkippedDeleted++;
-              logger.debug(`Skipping deleted post in topic ${topicId}, postId=${p?.id}`);
-            }
+            debugCounters.postsSkippedDeleted++;
+            logger.debug(`Skipping deleted post in topic ${topicId}, postId=${p?.id}`);
             continue;
           }
 
           const createdAt = p.created_at || p.posted_at || p.created || null;
           if (!createdAt) {
-            if (debugVerbose) {
-              debugCounters.postsSkippedInvalidDate++;
-              logger.debug(`Skipping post with missing createdAt in topic ${topicId}, postId=${p?.id}`);
-            }
+            debugCounters.postsSkippedInvalidDate++;
+            logger.debug(`Skipping post with missing createdAt in topic ${topicId}, postId=${p?.id}`);
             continue;
           }
 
           const createdTs = Date.parse(createdAt);
           if (isNaN(createdTs)) {
-            if (debugVerbose) {
-              debugCounters.postsSkippedInvalidDate++;
-              logger.debug(`Skipping post with invalid date '${createdAt}' in topic ${topicId}, postId=${p?.id}`);
-            }
+            debugCounters.postsSkippedInvalidDate++;
+            logger.debug(`Skipping post with invalid date '${createdAt}' in topic ${topicId}, postId=${p?.id}`);
             continue;
           }
 
           if (createdTs < since) {
-            if (debugVerbose) {
-              debugCounters.postsSkippedOld++;
-              logger.debug(`Skipping old post in topic ${topicId}, postId=${p?.id}, createdAt=${createdAt}`);
-            }
+            debugCounters.postsSkippedOld++;
+            logger.debug(`Skipping old post in topic ${topicId}, postId=${p?.id}, createdAt=${createdAt}`);
             continue;
           }
 
           const content = p.raw ? String(p.raw) : stripHtml(String(p.cooked || ""));
           if (!content || String(content).trim() === "") {
-            if (debugVerbose) {
-              debugCounters.postsSkippedEmpty++;
-              logger.debug(`Skipping empty content post in topic ${topicId}, postId=${p?.id}`);
-            }
+            debugCounters.postsSkippedEmpty++;
+            logger.debug(`Skipping empty content post in topic ${topicId}, postId=${p?.id}`);
             continue;
           }
 
-          if (debugVerbose) debugCounters.postsKept++;
+          debugCounters.postsKept++;
 
           const author = (p.username || p.name || p.user_name || (p.user && p.user.username) || "unknown") as string;
           const postId = p.id ?? p.post_id ?? undefined;
@@ -332,7 +307,7 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
 
     // If we encountered an old non-pinned topic, stop after finishing current page
     if (reachedOldCutoff) {
-      if (debugVerbose) logger.debug("Reached old cutoff on this page; will stop paging after this page.");
+      logger.debug("Reached old cutoff on this page; will stop paging after this page.");
       stopPaging = true;
     }
 
@@ -344,9 +319,7 @@ export async function fetchDiscourseMessages(opts: FetchDiscourseOptions): Promi
   }
 
   // If verbose debug, log counters
-  if (debugVerbose) {
-    logger.debug("Discourse fetch debug counters:", debugCounters);
-  }
+  logger.debug("Discourse fetch debug counters:", debugCounters);
 
   // sort ascending by createdAt
   messages.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
