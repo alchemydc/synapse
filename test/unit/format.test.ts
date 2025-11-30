@@ -91,9 +91,9 @@ describe("normalizeToSlackMrkdwn", () => {
 });
 
 describe("buildDigestBlocks", () => {
-  it("builds blocks with UTC header, context, divider, and summary section", () => {
+  it("builds blocks with UTC header, context, divider, and summary section from string item", () => {
     const blockSets = buildDigestBlocks({
-      summary: "Some summary text.",
+      items: ["Some summary text."],
       start: new Date("2025-08-27T00:00:00Z"),
       end: new Date("2025-08-28T00:00:00Z"),
       dateTitle: "2025-08-27",
@@ -106,5 +106,23 @@ describe("buildDigestBlocks", () => {
     expect(blocks[2].type).toBe("divider");
     expect(blocks[3].type).toBe("section");
     expect(blocks[3].text.text).toContain("Some summary text");
+  });
+
+  it("builds blocks from DigestItems", () => {
+    const blockSets = buildDigestBlocks({
+      items: [{
+        headline: "My Channel",
+        url: "https://discord.com/channels/123/456",
+        summary: "Summary content"
+      }],
+      start: new Date("2025-08-27T00:00:00Z"),
+      end: new Date("2025-08-28T00:00:00Z"),
+      dateTitle: "2025-08-27",
+    });
+    const blocks = blockSets[0];
+    // Header blocks are 0, 1, 2
+    expect(blocks[3].type).toBe("section");
+    expect(blocks[3].text.text).toContain("*<https://discord.com/channels/123/456|My Channel>*");
+    expect(blocks[3].text.text).toContain("Summary content");
   });
 });
