@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, Mock } from "vitest";
 
 vi.mock("node-fetch", () => {
   return {
@@ -7,7 +7,8 @@ vi.mock("node-fetch", () => {
 });
 
 import fetch from "node-fetch";
-import { fetchDiscourseMessages } from "../../src/services/discourse";
+import { DiscourseSource } from "../../src/services/discourse/DiscourseSource";
+import { Config } from "../../src/config";
 
 function makeResp(body: any) {
   return {
@@ -23,11 +24,11 @@ function makeResp(body: any) {
 
 describe("Discourse normalization", () => {
   beforeEach(() => {
-    (fetch as unknown as vi.Mock).mockReset();
+    (fetch as unknown as Mock).mockReset();
   });
 
   afterEach(() => {
-    (fetch as unknown as vi.Mock).mockReset();
+    (fetch as unknown as Mock).mockReset();
   });
 
   it("fetches latest topics and normalizes posts (first post + replies)", async () => {
@@ -65,7 +66,7 @@ describe("Discourse normalization", () => {
     };
 
     // Mock sequence: /latest.json -> topic.json
-    (fetch as unknown as vi.Mock).mockImplementation(async (url: string) => {
+    (fetch as unknown as Mock).mockImplementation(async (url: string) => {
       if (url.includes("/latest.json")) {
         return makeResp(latestJson);
       }
@@ -75,13 +76,17 @@ describe("Discourse normalization", () => {
       return makeResp({});
     });
 
-    const msgs = await fetchDiscourseMessages({
-      baseUrl: "https://forum.example",
-      apiKey: "key",
-      apiUser: "user",
-      windowHours: 24,
-      maxTopics: 10,
-    });
+    const config: Partial<Config> = {
+      DISCOURSE_ENABLED: true,
+      DISCOURSE_BASE_URL: "https://forum.example",
+      DISCOURSE_API_KEY: "key",
+      DISCOURSE_API_USERNAME: "user",
+      DISCOURSE_LOOKBACK_HOURS: 24,
+      DISCOURSE_MAX_TOPICS: 10,
+    };
+
+    const source = new DiscourseSource(config as Config);
+    const msgs = await source.fetchMessages(24);
 
     // should include two normalized messages
     expect(Array.isArray(msgs)).toBe(true);

@@ -1,9 +1,9 @@
 // test/unit/discord_filters.test.ts
 import { describe, it, expect } from "vitest";
-import { MessageDTO } from "../../src/services/discord";
+import { DiscordMessageDTO } from "../../src/services/discord/types";
 import { isCommand, isLinkOnly, applyMessageFilters } from "../../src/utils/filters";
 
-import type { Config } from "../../src/utils/filters";
+import { Config } from "../../src/config";
 
 const config: Partial<Config> = {
   MIN_MESSAGE_LENGTH: 5,
@@ -13,7 +13,7 @@ const config: Partial<Config> = {
 
 describe("Discord message filters", () => {
   it("filters out bot messages and empty content", () => {
-    const messages: MessageDTO[] = [
+    const messages: DiscordMessageDTO[] = [
       { id: "1", channelId: "a", author: "user", content: "hello", createdAt: "", url: "" },
       { id: "2", channelId: "a", author: "Bot", content: "ignore me", createdAt: "", url: "" },
       { id: "3", channelId: "a", author: "user", content: "   ", createdAt: "", url: "" },
@@ -25,34 +25,34 @@ describe("Discord message filters", () => {
   });
 
   it("filters by min length", () => {
-    const messages: MessageDTO[] = [
+    const messages: DiscordMessageDTO[] = [
       { id: "1", channelId: "a", author: "user", content: "hi", createdAt: "", url: "" },
       { id: "2", channelId: "a", author: "user", content: "hello world", createdAt: "", url: "" },
     ];
-    const filtered = applyMessageFilters(messages, config);
+    const filtered = applyMessageFilters(messages, config as Config);
     expect(filtered.length).toBe(1);
     expect(filtered[0].content).toBe("hello world");
   });
 
   it("filters out commands", () => {
-    const messages: MessageDTO[] = [
+    const messages: DiscordMessageDTO[] = [
       { id: "1", channelId: "a", author: "user", content: "!do something", createdAt: "", url: "" },
       { id: "2", channelId: "a", author: "user", content: "/help", createdAt: "", url: "" },
       { id: "3", channelId: "a", author: "user", content: "normal message", createdAt: "", url: "" },
     ];
-    const filtered = applyMessageFilters(messages, config);
+    const filtered = applyMessageFilters(messages, config as Config);
     expect(filtered.length).toBe(1);
     expect(filtered[0].content).toBe("normal message");
   });
 
   it("filters out link-only messages", () => {
-    const messages: MessageDTO[] = [
+    const messages: DiscordMessageDTO[] = [
       { id: "1", channelId: "a", author: "user", content: "https://example.com", createdAt: "", url: "" },
       { id: "2", channelId: "a", author: "user", content: "[Link](https://example.com)", createdAt: "", url: "" },
       { id: "3", channelId: "a", author: "user", content: "see https://example.com for details", createdAt: "", url: "" },
       { id: "4", channelId: "a", author: "user", content: "normal message", createdAt: "", url: "" },
     ];
-    const filtered = applyMessageFilters(messages, config);
+    const filtered = applyMessageFilters(messages, config as Config);
     expect(filtered.length).toBe(2);
     expect(filtered[0].content).toBe("see https://example.com for details");
     expect(filtered[1].content).toBe("normal message");
