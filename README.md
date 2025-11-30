@@ -1,71 +1,83 @@
-# Synapse Digest AI Bot
+# Synapse
 
-Automates monitoring of community sources (Discord + Discourse), summarizes with an LLM, and posts daily digests to Slack.
+Synapse is an intelligent community digest bot designed to aggregate, summarize, and distribute conversations from your community platforms. It helps teams stay on top of important discussions without getting lost in the noise.
+
+## Features
+
+- **Multi-Source Ingestion**: Seamlessly ingests messages from **Discord** channels and **Discourse** forums.
+- **Intelligent Summarization**: Powered by the **Vercel AI SDK**, Synapse uses advanced LLMs (like Google Gemini) to generate concise, context-aware summaries of conversations.
+- **Slack Destination**: Delivers beautifully formatted daily digests directly to your **Slack** workspace.
+- **Extensible Design**: Built on a modular architecture, making it easily extensible to support additional sources (e.g., GitHub, Telegram) and destinations (e.g., Email, Notion).
+
+## Architecture
+
+Synapse operates on a linear pipeline: `Source` -> `Processor` -> `Destination`.
+
+### Sources
+Sources are responsible for fetching and normalizing messages from external platforms.
+- **Discord**: Fetches recent messages from configured channels using the `discord.js` library.
+- **Discourse**: Polls latest topics and posts via the Discourse API, handling pagination and filtering.
+
+### Processor
+The core intelligence layer.
+- **AiSdkProcessor**: Utilizes the Vercel AI SDK to interface with LLMs. It currently supports Google's Gemini models to analyze conversation threads and produce structured summaries. It handles token limits and context management automatically.
+
+### Destination
+Where the value is delivered.
+- **Slack**: Formats the summarized data into rich Slack blocks, handling rate limits and message splitting for large digests.
 
 ## Quickstart
 
-1. Clone the repo and run `npm install`
-2. Copy `.env.example` to `.env` and fill in your API keys and config
-3. Run in dev mode: `npm run dev`
-4. Build: `npm run build`
-5. Start: `npm start`
-6. Run tests: `npm test`
-7. For local Discourse verification: `npm run discourse:debug` (validates Discourse API access)
+1.  **Clone and Install**
+    ```bash
+    git clone <repo-url>
+    cd synapse
+    npm install
+    ```
 
-Notes:
-- Use `DRY_RUN=true` to exercise the pipeline without posting to Slack.
-- Live Slack link-rendering for Discord channels and Discourse topics has been fixed.
+2.  **Configure Environment**
+    Copy `.env.example` to `.env` and populate it with your credentials.
+    ```bash
+    cp .env.example .env
+    ```
+
+3.  **Run Locally**
+    ```bash
+    npm run dev
+    ```
+
+4.  **Build and Start**
+    ```bash
+    npm run build
+    npm start
+    ```
+
+## Configuration
+
+Synapse is configured via environment variables.
+
+### Core
+- `LOG_LEVEL`: `debug`, `info`, `warn`, `error` (default: `info`)
+- `DRY_RUN`: `true` to skip posting to Slack (default: `false`)
+
+### LLM (Gemini)
+- `GEMINI_API_KEY`: Your Google Gemini API key.
+- `GEMINI_MODEL`: Model to use (e.g., `gemini-2.5-flash`).
+- `MAX_SUMMARY_TOKENS`: Max tokens for the summary output.
+
+### Sources
+- **Discord**: `DISCORD_TOKEN`, `DISCORD_CHANNELS` (comma-separated IDs).
+- **Discourse**: `DISCOURSE_BASE_URL`, `DISCOURSE_API_KEY`, `DISCOURSE_API_USERNAME`.
+
+### Destination
+- **Slack**: `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_ID`.
 
 ## Scripts
 
-- `dev`: ts-node-dev --respawn --transpile-only src/main.ts
-- `build`: tsc -p tsconfig.json
-- `start`: node dist/main.js
-- `test`: vitest run
-- `test:watch`: vitest
-- `lint`: TODO: add eslint
-- `discord:debug`: script to validate Discord API access (see `src/tools/discord_debug.ts`)
-- `discourse:debug`: script to validate Discourse API access (see `src/tools/discourse_debug.ts`)
-- `models:list`: script to list available Gemini models (see `src/tools/gemini_list_models.ts`)
-
-## Project Structure
-
-- src/main.ts: CLI entry
-- src/config: config loader (zod-based validation)
-- src/services: discord, discourse, llm, slack service adapters
-- src/utils: logger, formatter, time helpers, filters
-- test/unit: vitest unit tests
-
-## Dependencies
-
-See package.json for runtime and dev dependencies.
-
-## Message Filtering
-
-The bot supports configurable message filters via environment variables:
-
-- `MIN_MESSAGE_LENGTH` (default: 20): Minimum message length to include.
-- `EXCLUDE_COMMANDS` (default: true): Exclude messages starting with `!` or `/` (commands).
-- `EXCLUDE_LINK_ONLY` (default: true): Exclude messages that are only a link.
-
-Set these in your `.env` file to control which messages are summarized. See `.env.example` for details.
-
-## Discourse ingestion
-
-The project now ingests recent Discourse topics/posts and normalizes them into the internal message model. Discourse messages flow through the same ETL: Filters → LLM → Formatter → Slack.
-
-Relevant environment variables (see `.env.example`):
-- `DISCOURSE_BASE_URL`
-- `DISCOURSE_API_KEY`
-- `DISCOURSE_API_USERNAME`
-- `DISCOURSE_LOOKBACK_HOURS` (optional)
-- `DISCOURSE_MAX_TOPICS` (optional)
-
-
-
-## Operational Notes
-
-- Daily scheduling is provided via the GitHub Actions workflow (`.github/workflows/daily-digest.yml`) by default.
-- The app favors minimal data retention and secure handling of API keys.
-- Monitor Slack/Discord rate limits and tune retry/backoff as needed.
-- Add unit tests for Slack/formatter edge cases to prevent regressions; this is recommended after the recent fixes.
+- `npm run dev`: Run in development mode with hot-reloading.
+- `npm run build`: Compile TypeScript to JavaScript.
+- `npm start`: Run the production build.
+- `npm test`: Run unit tests.
+- `npm run discord:debug`: Validate Discord connectivity.
+- `npm run discourse:debug`: Validate Discourse connectivity.
+- `npm run models:list`: List available Gemini models.
