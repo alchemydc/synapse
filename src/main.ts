@@ -6,7 +6,7 @@ import { DigestPipeline } from "./DigestPipeline";
 import { DiscordSource } from "./services/discord/DiscordSource";
 import { DiscourseSource } from "./services/discourse/DiscourseSource";
 import { SlackDestination } from "./services/slack/SlackDestination";
-import { GeminiProcessor } from "./services/llm/GeminiProcessor";
+import { AiSdkProcessor } from "./services/llm/AiSdkProcessor";
 
 dotenv.config();
 const config = loadConfig();
@@ -17,7 +17,7 @@ logger.info("Synapse Digest Bot starting...");
 if (isDebug) logger.debug("[DEBUG] Log level set to debug");
 
 async function run() {
-  const processor = new GeminiProcessor(config);
+  const processor = new AiSdkProcessor(config);
   const pipeline = new DigestPipeline(config, processor);
 
   pipeline.addSource(new DiscordSource(config));
