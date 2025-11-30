@@ -1,5 +1,6 @@
 // src/core/interfaces.ts
 import { NormalizedMessage, DigestBlock, DigestContext } from "./types";
+import { DigestItem } from "./schemas";
 
 export interface Source {
     name: string;
@@ -15,5 +16,5 @@ export interface Destination {
 
 export interface Processor {
     name: string;
-    process(messages: NormalizedMessage[]): Promise<string>;
+    process(messages: NormalizedMessage[]): Promise<string | DigestItem>;
 }

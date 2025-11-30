@@ -17,44 +17,46 @@ describe("format block count", () => {
 
 Participants: user1, user2, user3`);
     }
-    
-    const summary = topics.join("\n\n");
-    
+
     const blockSets = buildDigestBlocks({
-      summary,
+      items: topics,
       start: new Date("2025-09-29T00:00:00Z"),
       end: new Date("2025-09-30T00:00:00Z"),
       dateTitle: "2025-09-29"
     });
-    
+
     // Should return single message since only 10 topics
     expect(blockSets).toHaveLength(1);
     const blocks = blockSets[0];
-    
+
     // With new logic: 3 header blocks + (10 topics × 2 blocks each) = 23 blocks
-    // Each topic: 1 section + 1 context (participants)
-    
+    // Each topic: 1 section + 1 divider (except last)
+    // Actually, my new logic adds divider *between* topics.
+    // So 10 topics = 10 sections + 9 dividers = 19 blocks.
+    // Plus 3 header blocks = 22 blocks.
+
     expect(blocks.length).toBeLessThan(50);
     expect(blocks.length).toBeLessThanOrEqual(35); // Allow some margin
-    
+
     // Verify structure: header, context, divider, then topics
     expect(blocks[0].type).toBe("header");
     expect(blocks[1].type).toBe("context");
     expect(blocks[2].type).toBe("divider");
-    
+
     // Count section blocks (should be 10, one per topic)
     const sectionBlocks = blocks.filter(b => b.type === "section");
     expect(sectionBlocks.length).toBe(10);
-    
+
     // Verify each section contains all bullets (not split)
     const firstSection = sectionBlocks[0].text.text;
     expect(firstSection).toContain("First bullet point");
     expect(firstSection).toContain("Second bullet point");
     expect(firstSection).toContain("Third bullet point");
   });
-  
+
   it("should group all content under each topic header", () => {
-    const summary = `## Security Alert
+    const topics = [
+      `## Security Alert
 
 [Discord #security]
 
@@ -62,35 +64,35 @@ Participants: user1, user2, user3`);
 - Patch released
 - Testing complete
 
-Participants: alice, bob
-
-## General Discussion
+Participants: alice, bob`,
+      `## General Discussion
 
 [Discord #general]
 
 - Price discussion
 - Market update
 
-Participants: carol`;
-    
+Participants: carol`
+    ];
+
     const blockSets = buildDigestBlocks({
-      summary,
+      items: topics,
       start: new Date("2025-09-29T00:00:00Z"),
       end: new Date("2025-09-30T00:00:00Z"),
       dateTitle: "2025-09-29"
     });
-    
+
     // Should return single message
     expect(blockSets).toHaveLength(1);
     const blocks = blockSets[0];
-    
+
     // Expected: header + context + divider + (2 topics × 2 blocks) = 7 blocks
     // Topic 1: section + context (no divider between topics to save blocks)
     // Topic 2: section + context
     // Actually might be 6 if some context blocks are missing
     expect(blocks.length).toBeGreaterThanOrEqual(6);
     expect(blocks.length).toBeLessThanOrEqual(10);
-    
+
     // Verify first topic section contains all bullets
     const firstTopicSection = blocks.find((b, i) => i > 2 && b.type === "section");
     expect(firstTopicSection).toBeDefined();
