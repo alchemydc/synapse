@@ -5,10 +5,11 @@ exports.AiSdkProcessor = void 0;
 const google_1 = require("@ai-sdk/google");
 const ai_1 = require("ai");
 const logger_1 = require("../../utils/logger");
+const schemas_1 = require("../../core/schemas");
 class AiSdkProcessor {
     name = "ai-sdk-google";
     config;
-    google; // Type is inferred from createGoogleGenerativeAI
+    google;
     constructor(config) {
         this.config = config;
         if (config.GEMINI_API_KEY) {
@@ -20,7 +21,6 @@ class AiSdkProcessor {
     async process(messages) {
         if (messages.length === 0)
             return "";
-        // Determine context from first message
         const first = messages[0];
         if (first.source === "discord") {
             return this.summarizeDiscord(messages);
@@ -32,98 +32,90 @@ class AiSdkProcessor {
     }
     async summarizeDiscord(messages) {
         if (!this.google)
-            return "";
+            throw new Error("Google provider not initialized");
         const first = messages[0];
         const channelName = first.channelName || first.channelId || "unknown";
-        // Extract guildId from url if possible, or default
         const guildId = first.url ? first.url.split('/')[4] : 'unknown';
-        const channelUrl = `https://discord.com/channels/${guildId}/${first.channelId?.replace('disc-topic-', '') || ''}`;
-        // Truncate
-        const maxChars = Math.min(this.config.MAX_SUMMARY_TOKENS * 4, 1500);
-        const truncated = this.truncateMessages(messages, maxChars);
-        const parts = [];
-        parts.push("Discord Channel Digest:");
-        parts.push("");
-        parts.push("Summarize the following Discord channel messages.");
-        parts.push("");
-        parts.push("FORMATTING RULES:");
-        parts.push("- Identify important conversations naturally (security, funding, governance, performance, adoption, customer feedback, growth, etc.)");
-        parts.push("- For each significant topic, provide concise bullets");
-        parts.push("- Include participant names inline for significant discussions (e.g., 'Alice and Bob discussed X')");
-        parts.push("- If there are decisions, action items, or shared links, label those sections");
-        parts.push("- Do NOT output acknowledgements, confirmations, or meta-commentary");
-        parts.push("");
-        parts.push("Messages:");
-        parts.push("");
-        for (let i = 0; i < truncated.length; i++) {
-            parts.push(`[${i + 1}] ${this.formatMessageLine(truncated[i])}`);
-        }
-        parts.push("");
-        parts.push("=== INPUT END ===");
-        parts.push("BEGIN DIGEST:");
-        parts.push("");
-        const prompt = parts.join("\n");
-        const out = await this.generate(prompt);
-        // Reconstruct header
-        let realChannelUrl = channelUrl;
+        let realChannelUrl = `https://discord.com/channels/${guildId}/${first.channelId?.replace('disc-topic-', '') || ''}`;
         if (first.url && first.url.includes("discord.com/channels/")) {
             const parts = first.url.split("/");
             if (parts.length >= 6) {
                 realChannelUrl = `https://discord.com/channels/${parts[4]}/${parts[5]}`;
             }
         }
-        const header = `## [#${channelName}](${realChannelUrl})`;
-        return `${header}\n\n${out.trim()}`;
-    }
-    async summarizeDiscourse(messages) {
-        if (!this.google)
-            return "";
-        const first = messages[0];
-        const topicTitle = first.topicTitle || "Unknown Topic";
         const maxChars = Math.min(this.config.MAX_SUMMARY_TOKENS * 4, 1500);
         const truncated = this.truncateMessages(messages, maxChars);
         const parts = [];
-        parts.push("Forum Topic Digest:");
+        parts.push(`CONTEXT: Discord Channel #${channelName}`);
+        parts.push(`URL: ${realChannelUrl}`);
+        parts.push("");
+        parts.push("Summarize the following Discord channel messages.");
+        parts.push("");
+        parts.push("FORMATTING RULES:");
+        parts.push("- Identify important conversations naturally");
+        parts.push("- Provide concise bullets");
+        parts.push("- Include participant names inline");
+        parts.push("- Do NOT output acknowledgements");
+        parts.push("");
+        parts.push("Messages:");
+        for (let i = 0; i < truncated.length; i++) {
+            parts.push(`[${i + 1}] ${this.formatMessageLine(truncated[i])}`);
+        }
+        const prompt = parts.join("\n");
+        return this.generate(prompt, `#${channelName}`, realChannelUrl);
+    }
+    async summarizeDiscourse(messages) {
+        if (!this.google)
+            throw new Error("Google provider not initialized");
+        const first = messages[0];
+        const topicTitle = first.topicTitle || "Unknown Topic";
+        const topicUrl = first.url;
+        const maxChars = Math.min(this.config.MAX_SUMMARY_TOKENS * 4, 1500);
+        const truncated = this.truncateMessages(messages, maxChars);
+        const parts = [];
+        parts.push(`CONTEXT: Forum Topic "${topicTitle}"`);
+        parts.push(`URL: ${topicUrl}`);
         parts.push("");
         parts.push("Summarize the following forum topic and its replies.");
         parts.push("");
         parts.push("FORMATTING RULES:");
-        parts.push("- Identify important conversations naturally (security, funding, governance, performance, adoption, customer feedback, growth, etc.)");
-        parts.push("- Provide concise bullets covering the main discussion points");
-        parts.push("- Include participant names inline for significant contributions (e.g., 'Charlie proposed X')");
-        parts.push("- If there are decisions, action items, or shared links, label those sections");
-        parts.push("- Do NOT output acknowledgements, confirmations, or meta-commentary");
+        parts.push("- Identify important conversations naturally");
+        parts.push("- Provide concise bullets");
+        parts.push("- Include participant names inline");
+        parts.push("- Do NOT output acknowledgements");
         parts.push("");
         parts.push("Messages:");
-        parts.push("");
         for (let i = 0; i < truncated.length; i++) {
             parts.push(`[${i + 1}] ${this.formatMessageLine(truncated[i])}`);
         }
-        parts.push("");
-        parts.push("=== INPUT END ===");
-        parts.push("BEGIN DIGEST:");
-        parts.push("");
         const prompt = parts.join("\n");
-        const out = await this.generate(prompt);
-        const header = `## [${topicTitle}](${first.url})`;
-        return `${header}\n\n${out.trim()}`;
+        return this.generate(prompt, topicTitle, topicUrl);
     }
-    async generate(prompt) {
-        if (!this.google)
-            return "";
+    async generate(prompt, defaultHeadline, defaultUrl) {
         try {
             const model = this.google(this.config.GEMINI_MODEL);
-            const { text } = await (0, ai_1.generateText)({
+            const { object } = await (0, ai_1.generateObject)({
                 model,
+                schema: schemas_1.DigestItemSchema,
                 prompt,
                 maxOutputTokens: this.config.MAX_SUMMARY_TOKENS,
                 temperature: 0.2,
             });
-            return text;
+            // Fallback if model hallucinates empty fields, though schema enforces strings.
+            return {
+                headline: object.headline || defaultHeadline,
+                url: object.url || defaultUrl,
+                summary: object.summary
+            };
         }
         catch (err) {
             logger_1.logger.error(`AiSdk generation failed: ${err.message}`);
-            return "Error generating summary.";
+            // Return a fallback DigestItem
+            return {
+                headline: defaultHeadline,
+                url: defaultUrl,
+                summary: "Error generating summary."
+            };
         }
     }
     formatMessageLine(msg) {

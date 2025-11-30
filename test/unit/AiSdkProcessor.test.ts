@@ -3,14 +3,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AiSdkProcessor } from "../../src/services/llm/AiSdkProcessor";
 import { Config } from "../../src/config";
 import { NormalizedMessage } from "../../src/core/types";
+import { DigestItem } from "../../src/core/schemas";
 
 // Mock dependencies
-const mockGenerateText = vi.fn();
+const mockGenerateObject = vi.fn();
 const mockGoogleModel = vi.fn();
-const mockCreateGoogleGenerativeAI = vi.fn(() => mockGoogleModel);
+const mockCreateGoogleGenerativeAI = vi.fn((_args: any) => mockGoogleModel);
 
 vi.mock("ai", () => ({
-    generateText: (args: any) => mockGenerateText(args),
+    generateObject: (args: any) => mockGenerateObject(args),
 }));
 
 vi.mock("@ai-sdk/google", () => ({
@@ -42,7 +43,13 @@ describe("AiSdkProcessor", () => {
         } as Config;
 
         // Mock successful generation by default
-        mockGenerateText.mockResolvedValue({ text: "Generated Summary" });
+        mockGenerateObject.mockResolvedValue({
+            object: {
+                headline: "Generated Headline",
+                url: "https://generated.url",
+                summary: "Generated Summary"
+            }
+        });
 
         processor = new AiSdkProcessor(config);
     });
@@ -65,12 +72,14 @@ describe("AiSdkProcessor", () => {
             },
         ];
 
-        const result = await processor.process(messages);
+        const result = await processor.process(messages) as DigestItem;
 
         expect(mockGoogleModel).toHaveBeenCalledWith("gemini-1.5-pro");
-        expect(mockGenerateText).toHaveBeenCalled();
-        expect(result).toContain("## [#general](https://discord.com/channels/123/456)");
-        expect(result).toContain("Generated Summary");
+        expect(mockGenerateObject).toHaveBeenCalled();
+        expect(result.headline).toBe("Generated Headline"); // Or check if it falls back to default if mocked return is empty?
+        // The mock returns "Generated Headline", so we expect that.
+        // Actually, the code uses `object.headline || defaultHeadline`.
+        expect(result.summary).toBe("Generated Summary");
     });
 
     it("should process Discourse messages", async () => {
@@ -86,21 +95,21 @@ describe("AiSdkProcessor", () => {
             },
         ];
 
-        const result = await processor.process(messages);
+        const result = await processor.process(messages) as DigestItem;
 
-        expect(mockGenerateText).toHaveBeenCalled();
-        expect(result).toContain("## [My Topic](https://forum.example.com/t/topic-slug/123)");
-        expect(result).toContain("Generated Summary");
+        expect(mockGenerateObject).toHaveBeenCalled();
+        expect(result.headline).toBe("Generated Headline");
+        expect(result.summary).toBe("Generated Summary");
     });
 
     it("should handle empty messages", async () => {
         const result = await processor.process([]);
         expect(result).toBe("");
-        expect(mockGenerateText).not.toHaveBeenCalled();
+        expect(mockGenerateObject).not.toHaveBeenCalled();
     });
 
     it("should handle generation errors gracefully", async () => {
-        mockGenerateText.mockRejectedValue(new Error("API Error"));
+        mockGenerateObject.mockRejectedValue(new Error("API Error"));
 
         const messages: NormalizedMessage[] = [
             {
@@ -113,7 +122,7 @@ describe("AiSdkProcessor", () => {
             },
         ];
 
-        const result = await processor.process(messages);
-        expect(result).toContain("Error generating summary");
+        const result = await processor.process(messages) as DigestItem;
+        expect(result.summary).toContain("Error generating summary");
     });
 });
