@@ -1,9 +1,9 @@
 // utils/filters.ts
-import { MessageDTO } from "../services/discord";
-import { NormalizedMessage } from "../services/discourse";
+import { DiscordMessageDTO } from "../services/discord/types";
+import { NormalizedMessage } from "../core/types";
 import { Config } from "../config";
 
-type FilterableMessage = MessageDTO | NormalizedMessage;
+type FilterableMessage = DiscordMessageDTO | NormalizedMessage;
 
 export function isCommand(msg: FilterableMessage): boolean {
   return /^(!|\/)/.test(msg.content.trim());

@@ -2,10 +2,10 @@
 
 import { describe, it, expect } from "vitest";
 import { isDMChatter } from "../../src/utils/filters";
-import { MessageDTO } from "../../src/services/discord";
+import { DiscordMessageDTO } from "../../src/services/discord/types";
 
 describe("isDMChatter", () => {
-  const createMessage = (content: string): MessageDTO => ({
+  const createMessage = (content: string): DiscordMessageDTO => ({
     id: "123",
     content,
     createdAt: new Date().toISOString(),

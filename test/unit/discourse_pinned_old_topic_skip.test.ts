@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, Mock } from "vitest";
 
 vi.mock("node-fetch", () => {
   return {
@@ -7,7 +7,8 @@ vi.mock("node-fetch", () => {
 });
 
 import fetch from "node-fetch";
-import { fetchDiscourseMessages } from "../../src/services/discourse";
+import { DiscourseSource } from "../../src/services/discourse/DiscourseSource";
+import { Config } from "../../src/config";
 
 function makeResp(body: any) {
   return {
@@ -23,11 +24,11 @@ function makeResp(body: any) {
 
 describe("Discourse pagination & pinned topic handling", () => {
   beforeEach(() => {
-    (fetch as unknown as any).mockReset();
+    (fetch as unknown as Mock).mockReset();
   });
 
   afterEach(() => {
-    (fetch as unknown as any).mockReset();
+    (fetch as unknown as Mock).mockReset();
   });
 
   it("processes fresh non-pinned topic when an old pinned topic appears first", async () => {
@@ -54,7 +55,7 @@ describe("Discourse pagination & pinned topic handling", () => {
       category_id: 5,
     };
 
-    (fetch as unknown as any).mockImplementation(async (url: string) => {
+    (fetch as unknown as Mock).mockImplementation(async (url: string) => {
       if (url.includes("/latest.json")) {
         return makeResp(latestJson);
       }
@@ -64,13 +65,17 @@ describe("Discourse pagination & pinned topic handling", () => {
       return makeResp({});
     });
 
-    const msgs = await fetchDiscourseMessages({
-      baseUrl: "https://forum.example",
-      apiKey: "key",
-      apiUser: "user",
-      windowHours: 24,
-      maxTopics: 10,
-    });
+    const config: Partial<Config> = {
+      DISCOURSE_ENABLED: true,
+      DISCOURSE_BASE_URL: "https://forum.example",
+      DISCOURSE_API_KEY: "key",
+      DISCOURSE_API_USERNAME: "user",
+      DISCOURSE_LOOKBACK_HOURS: 24,
+      DISCOURSE_MAX_TOPICS: 10,
+    };
+
+    const source = new DiscourseSource(config as Config);
+    const msgs = await source.fetchMessages(24);
 
     // pinned old should be skipped, fresh topic processed
     expect(Array.isArray(msgs)).toBe(true);
@@ -101,7 +106,7 @@ describe("Discourse pagination & pinned topic handling", () => {
       category_id: 7,
     };
 
-    (fetch as unknown as any).mockImplementation(async (url: string) => {
+    (fetch as unknown as Mock).mockImplementation(async (url: string) => {
       if (url.includes("/latest.json")) {
         return makeResp(latestJson);
       }
@@ -112,20 +117,24 @@ describe("Discourse pagination & pinned topic handling", () => {
       return makeResp({});
     });
 
-    const msgs = await fetchDiscourseMessages({
-      baseUrl: "https://forum.example",
-      apiKey: "key",
-      apiUser: "user",
-      windowHours: 24,
-      maxTopics: 10,
-    });
+    const config: Partial<Config> = {
+      DISCOURSE_ENABLED: true,
+      DISCOURSE_BASE_URL: "https://forum.example",
+      DISCOURSE_API_KEY: "key",
+      DISCOURSE_API_USERNAME: "user",
+      DISCOURSE_LOOKBACK_HOURS: 24,
+      DISCOURSE_MAX_TOPICS: 10,
+    };
+
+    const source = new DiscourseSource(config as Config);
+    const msgs = await source.fetchMessages(24);
 
     // Only fresh topic posts should be present
     expect(msgs.length).toBe(1);
     expect(msgs[0].topicId).toBe(freshId);
 
     // Ensure no fetch call contained '?page=1'
-    const calls = (fetch as unknown as vi.Mock).mock.calls.map((c: any[]) => String(c[0] || ""));
+    const calls = (fetch as unknown as Mock).mock.calls.map((c: any[]) => String(c[0] || ""));
     const page1Calls = calls.filter((u: string) => u.includes("page=1"));
     expect(page1Calls.length).toBe(0);
   });
@@ -154,7 +163,7 @@ describe("Discourse pagination & pinned topic handling", () => {
       category_id: 9,
     };
 
-    (fetch as unknown as any).mockImplementation(async (url: string) => {
+    (fetch as unknown as Mock).mockImplementation(async (url: string) => {
       if (url.includes("/latest.json")) {
         return makeResp(latestJson);
       }
@@ -164,19 +173,23 @@ describe("Discourse pagination & pinned topic handling", () => {
       return makeResp({});
     });
 
-    const msgs = await fetchDiscourseMessages({
-      baseUrl: "https://forum.example",
-      apiKey: "key",
-      apiUser: "user",
-      windowHours: 24,
-      maxTopics: 10,
-    });
+    const config: Partial<Config> = {
+      DISCOURSE_ENABLED: true,
+      DISCOURSE_BASE_URL: "https://forum.example",
+      DISCOURSE_API_KEY: "key",
+      DISCOURSE_API_USERNAME: "user",
+      DISCOURSE_LOOKBACK_HOURS: 24,
+      DISCOURSE_MAX_TOPICS: 10,
+    };
+
+    const source = new DiscourseSource(config as Config);
+    const msgs = await source.fetchMessages(24);
 
     // Fresh topic should be processed; no page=1 fetch
     expect(msgs.length).toBe(1);
     expect(msgs[0].topicId).toBe(freshId);
 
-    const calls = (fetch as unknown as vi.Mock).mock.calls.map((c: any[]) => String(c[0] || ""));
+    const calls = (fetch as unknown as Mock).mock.calls.map((c: any[]) => String(c[0] || ""));
     const page1Calls = calls.filter((u: string) => u.includes("page=1"));
     expect(page1Calls.length).toBe(0);
   });
