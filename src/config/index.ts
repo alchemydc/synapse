@@ -31,12 +31,12 @@ const ConfigSchema = z.object({
   SLACK_CHANNEL_ID: z.preprocess(toStr, z.string()).optional(),
   GEMINI_API_KEY: z.preprocess(toStr, z.string()).optional(),
 
-  GEMINI_MODEL: z.preprocess(toStr, z.string()).default("gemini-1.5-flash"),
+  GEMINI_MODEL: z.preprocess(toStr, z.string()).default("gemini-2.5-flash"),
 
   MAX_SUMMARY_TOKENS: z.preprocess(
     toNum,
     z.number().int().min(128)
-  ).default(1024),
+  ).default(1500),
 
   DRY_RUN: z.preprocess(
     toBool,
@@ -65,26 +65,13 @@ const ConfigSchema = z.object({
     z.boolean()
   ).default(true),
 
-  ATTRIBUTION_ENABLED: z.preprocess(
-    toBool,
-    z.boolean()
-  ).default(false),
 
-  TOPIC_GAP_MINUTES: z.preprocess(
-    toNum,
-    z.number().int().min(1)
-  ).default(20),
-
-  MAX_TOPIC_PARTICIPANTS: z.preprocess(
-    toNum,
-    z.number().int().min(1)
-  ).default(6),
 
 
   // Per-source enable flags (keep defaults but allow explicit unset)
   ENABLE_DISCORD: z.preprocess(toBool, z.boolean()).optional().default(true),
   ENABLE_DISCOURSE: z.preprocess(toBool, z.boolean()).optional().default(true),
-  LINKED_SOURCE_LABELS: z.preprocess(toBool, z.boolean()).optional(),
+
 
   // Discourse-related optional settings
   DISCOURSE_BASE_URL: z.preprocess(toStr, z.string()).optional(),
@@ -100,6 +87,8 @@ const ConfigSchema = z.object({
     toNum,
     z.number().int().min(1)
   ).optional(),
+
+
 });
 
 export type Config = {
@@ -117,9 +106,7 @@ export type Config = {
   MIN_MESSAGE_LENGTH: number;
   EXCLUDE_COMMANDS: boolean;
   EXCLUDE_LINK_ONLY: boolean;
-  ATTRIBUTION_ENABLED: boolean;
-  TOPIC_GAP_MINUTES: number;
-  MAX_TOPIC_PARTICIPANTS: number;
+
 
   // Discourse
   DISCOURSE_BASE_URL?: string;
@@ -128,9 +115,10 @@ export type Config = {
   DISCOURSE_LOOKBACK_HOURS?: number;
   DISCOURSE_MAX_TOPICS?: number;
 
+
   ENABLE_DISCORD: boolean;
   ENABLE_DISCOURSE: boolean;
-  LINKED_SOURCE_LABELS?: boolean;
+
 
   // derived
   DISCORD_ENABLED: boolean;
@@ -154,17 +142,18 @@ export function loadConfig(): Config {
 
   const discoBase = normalizeBaseUrl(raw.DISCOURSE_BASE_URL);
 
-    const config: Config = {
+  const config: Config = {
     ...raw,
     DISCORD_CHANNELS: configBaseChannels,
     ENABLE_DISCORD: raw.ENABLE_DISCORD,
     ENABLE_DISCOURSE: raw.ENABLE_DISCOURSE,
-    LINKED_SOURCE_LABELS: typeof raw.LINKED_SOURCE_LABELS !== "undefined" ? raw.LINKED_SOURCE_LABELS : true,
+
     DISCOURSE_BASE_URL: discoBase,
     DISCOURSE_API_KEY: raw.DISCOURSE_API_KEY,
     DISCOURSE_API_USERNAME: raw.DISCOURSE_API_USERNAME,
     DISCOURSE_LOOKBACK_HOURS: raw.DISCOURSE_LOOKBACK_HOURS,
     DISCOURSE_MAX_TOPICS: raw.DISCOURSE_MAX_TOPICS,
+
     // derived enablement
     DISCORD_ENABLED: Boolean(raw.ENABLE_DISCORD && raw.DISCORD_TOKEN && raw.DISCORD_CHANNELS),
     DISCOURSE_ENABLED:
@@ -186,14 +175,11 @@ export function loadConfig(): Config {
     minMessageLength: config.MIN_MESSAGE_LENGTH,
     excludeCommands: config.EXCLUDE_COMMANDS,
     excludeLinkOnly: config.EXCLUDE_LINK_ONLY,
-    attributionEnabled: config.ATTRIBUTION_ENABLED,
-    topicGapMinutes: config.TOPIC_GAP_MINUTES,
-    maxTopicParticipants: config.MAX_TOPIC_PARTICIPANTS,
     enableFlags: {
       enableDiscord: raw.ENABLE_DISCORD,
       enableDiscourse: raw.ENABLE_DISCOURSE,
     },
-    linkedSourceLabels: config.LINKED_SOURCE_LABELS,
+
     discord: {
       enabled: config.DISCORD_ENABLED,
       channelsCount: config.DISCORD_CHANNELS.length,

@@ -24,7 +24,9 @@ Notes:
 - `test`: vitest run
 - `test:watch`: vitest
 - `lint`: TODO: add eslint
+- `discord:debug`: script to validate Discord API access (see `src/tools/discord_debug.ts`)
 - `discourse:debug`: script to validate Discourse API access (see `src/tools/discourse_debug.ts`)
+- `models:list`: script to list available Gemini models (see `src/tools/gemini_list_models.ts`)
 
 ## Project Structure
 
@@ -56,22 +58,10 @@ Relevant environment variables (see `.env.example`):
 - `DISCOURSE_BASE_URL`
 - `DISCOURSE_API_KEY`
 - `DISCOURSE_API_USERNAME`
-- `DISCOURSE_CATEGORY_IDS` (optional)
 - `DISCOURSE_LOOKBACK_HOURS` (optional)
+- `DISCOURSE_MAX_TOPICS` (optional)
 
-## Attribution (per-topic participants)
 
-Optional per-topic participant attribution (disabled by default).
-
-Environment variables:
-- `ATTRIBUTION_ENABLED` (boolean, default: false)
-- `TOPIC_GAP_MINUTES` (integer, default: 20)
-- `MAX_TOPIC_PARTICIPANTS` (integer, default: 6)
-- `ATTRIBUTION_FALLBACK_ENABLED` (boolean, default: true)
-
-Notes and limitations:
-- Attribution uses a simple time-gap clustering heuristic (no semantic clustering yet).
-- Enabling attribution may increase prompt length and LLM token usage; tune `MAX_SUMMARY_TOKENS` accordingly.
 
 ## Operational Notes
 

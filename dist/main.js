@@ -141,7 +141,7 @@ async function run() {
         return;
     }
     logger_1.logger.info(`Formatting ${summaries.length} summaries for Slack...`);
-    const combinedSummary = summaries.join('\n\n---\n\n');
+    const combinedSummary = summaries.join('\n\n');
     const blockSets = (0, format_1.buildDigestBlocks)({
         summary: combinedSummary,
         start,
