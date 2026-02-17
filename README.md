@@ -1,5 +1,7 @@
 # Synapse
 
+![Coverage](https://github.com/alchemydc/synapse/actions/workflows/ci.yml/badge.svg)
+
 Synapse is an intelligent community digest bot designed to aggregate, summarize, and distribute conversations from your community platforms. It helps teams stay on top of important discussions without getting lost in the noise.
 
 ## Features
@@ -78,9 +80,15 @@ Synapse is configured via environment variables.
 - `npm run build`: Compile TypeScript to JavaScript.
 - `npm start`: Run the production build.
 - `npm test`: Run unit tests.
+- `npm run test:coverage`: Generate report-only coverage output.
 - `npm run discord:debug`: Validate Discord connectivity.
 - `npm run discourse:debug`: Validate Discourse connectivity.
 - `npm run models:list`: List available Gemini models.
+
+## Coverage
+
+- Coverage is generated natively in GitHub Actions (`CI - Tests & Coverage`) in report-only mode.
+- Open the latest CI run and download the `coverage-report` artifact for `lcov` and summary outputs.
 
 ## Operations
 
