@@ -1,6 +1,7 @@
 # Synapse
 
-![Coverage](https://github.com/alchemydc/synapse/actions/workflows/ci.yml/badge.svg)
+[![Tests](https://github.com/alchemydc/synapse/actions/workflows/ci.yml/badge.svg)](https://github.com/alchemydc/synapse/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/alchemydc/synapse/branch/main/graph/badge.svg)](https://codecov.io/gh/alchemydc/synapse)
 
 Synapse is an intelligent community digest bot designed to aggregate, summarize, and distribute conversations from your community platforms. It helps teams stay on top of important discussions without getting lost in the noise.
 
