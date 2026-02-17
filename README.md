@@ -81,3 +81,7 @@ Synapse is configured via environment variables.
 - `npm run discord:debug`: Validate Discord connectivity.
 - `npm run discourse:debug`: Validate Discourse connectivity.
 - `npm run models:list`: List available Gemini models.
+
+## Operations
+
+- Production runbook: [`docs/production-runbook.md`](docs/production-runbook.md)
