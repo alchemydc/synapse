@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SlackDestination } from '../../src/services/slack/SlackDestination';
 import { Config } from '../../src/config';
 
@@ -6,12 +6,14 @@ import { Config } from '../../src/config';
 const mockPostMessage = vi.fn();
 
 vi.mock('@slack/web-api', () => {
+    class MockWebClient {
+        chat = {
+            postMessage: mockPostMessage,
+        };
+    }
+
     return {
-        WebClient: vi.fn().mockImplementation(() => ({
-            chat: {
-                postMessage: mockPostMessage,
-            },
-        })),
+        WebClient: MockWebClient,
     };
 });
 

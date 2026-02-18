@@ -114,11 +114,20 @@ export class AiSdkProcessor implements Processor {
                 temperature: 0.2,
             });
 
+            const parsed = DigestItemSchema.safeParse(object);
+            if (!parsed.success) {
+                return {
+                    headline: defaultHeadline,
+                    url: defaultUrl,
+                    summary: "Error generating summary."
+                };
+            }
+
             // Fallback if model hallucinates empty fields, though schema enforces strings.
             return {
-                headline: object.headline || defaultHeadline,
-                url: object.url || defaultUrl,
-                summary: object.summary
+                headline: parsed.data.headline || defaultHeadline,
+                url: parsed.data.url || defaultUrl,
+                summary: parsed.data.summary
             };
         } catch (err: any) {
             logger.error(`AiSdk generation failed: ${err.message}`);
