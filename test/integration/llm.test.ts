@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GeminiProcessor } from '../../src/services/llm/GeminiProcessor';
 import { Config } from '../../src/config';
 import { NormalizedMessage } from '../../src/core/types';
@@ -8,10 +8,12 @@ const mockGenerateContent = vi.fn();
 const mockGetGenerativeModel = vi.fn();
 
 vi.mock('@google/generative-ai', () => {
+    class MockGoogleGenerativeAI {
+        getGenerativeModel = mockGetGenerativeModel;
+    }
+
     return {
-        GoogleGenerativeAI: vi.fn().mockImplementation(() => ({
-            getGenerativeModel: mockGetGenerativeModel,
-        })),
+        GoogleGenerativeAI: MockGoogleGenerativeAI,
     };
 });
 

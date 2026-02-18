@@ -35,8 +35,11 @@ Where the value is delivered.
     ```bash
     git clone <repo-url>
     cd synapse
+    nvm use
     npm install
     ```
+
+    Node.js runtime is pinned in `.nvmrc` and enforced in `package.json` (`engines.node`).
 
 2.  **Configure Environment**
     Copy `.env.example` to `.env` and populate it with your credentials.
@@ -85,6 +88,14 @@ Synapse is configured via environment variables.
 - `npm run discord:debug`: Validate Discord connectivity.
 - `npm run discourse:debug`: Validate Discourse connectivity.
 - `npm run models:list`: List available Gemini models.
+
+## Dependency Maintenance
+
+- Node.js runtime is pinned via `.nvmrc`, and CI reads from that file.
+- Automated update PRs are configured in `.github/dependabot.yml`.
+- Review patch/minor updates weekly and schedule major updates intentionally.
+- `package.json` includes npm `overrides` for vulnerable transitive packages (`diff`, `undici`) so security patches can be applied without forcing a breaking direct dependency downgrade.
+- Keep these `overrides` only while upstream trees require them; remove once direct dependency updates naturally resolve to patched transitive versions.
 
 ## Coverage
 

@@ -101,11 +101,19 @@ class AiSdkProcessor {
                 maxOutputTokens: this.config.MAX_SUMMARY_TOKENS,
                 temperature: 0.2,
             });
+            const parsed = schemas_1.DigestItemSchema.safeParse(object);
+            if (!parsed.success) {
+                return {
+                    headline: defaultHeadline,
+                    url: defaultUrl,
+                    summary: "Error generating summary."
+                };
+            }
             // Fallback if model hallucinates empty fields, though schema enforces strings.
             return {
-                headline: object.headline || defaultHeadline,
-                url: object.url || defaultUrl,
-                summary: object.summary
+                headline: parsed.data.headline || defaultHeadline,
+                url: parsed.data.url || defaultUrl,
+                summary: parsed.data.summary
             };
         }
         catch (err) {

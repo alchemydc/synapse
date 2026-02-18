@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DiscordSource } from '../../src/services/discord/DiscordSource';
 import { Config } from '../../src/config';
-import { Collection } from 'discord.js';
 
 // Mock discord.js
 const mockLogin = vi.fn();
@@ -10,14 +9,16 @@ const mockChannelsFetch = vi.fn();
 const mockMessagesFetch = vi.fn();
 
 vi.mock('discord.js', () => {
+    class MockClient {
+        login = mockLogin;
+        destroy = mockDestroy;
+        channels = {
+            fetch: mockChannelsFetch,
+        };
+    }
+
     return {
-        Client: vi.fn().mockImplementation(() => ({
-            login: mockLogin,
-            destroy: mockDestroy,
-            channels: {
-                fetch: mockChannelsFetch,
-            },
-        })),
+        Client: MockClient,
         GatewayIntentBits: {
             Guilds: 1,
             GuildMessages: 2,
