@@ -96,8 +96,7 @@ export class AiSdkProcessor implements Processor {
         return this.generate(prompt, topicTitle, topicUrl);
     }
 
-    // Rules shared by both prompt builders, ported from the legacy
-    // GeminiProcessor prompt plus explicit accuracy guardrails.
+    // Rules shared by both prompt builders.
     private pushSharedRules(parts: string[]): void {
         parts.push("FORMATTING RULES:");
         parts.push("- Identify important conversations naturally (security, funding, governance, performance, adoption, community feedback, etc.)");

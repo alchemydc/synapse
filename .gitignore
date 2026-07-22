@@ -2,3 +2,6 @@
 .env
 n8n_data/
 node_modules
+
+# build output
+dist/
