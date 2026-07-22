@@ -101,8 +101,8 @@ export class AiSdkProcessor implements Processor {
         parts.push("IMPORTANCE RATING:");
         parts.push("Classify this conversation group's overall importance as exactly one of \"high\", \"medium\", or \"low\":");
         parts.push("- high: security vulnerabilities or incidents; outages or urgent operational issues; releases, network upgrades, or breaking changes that require users to act; major governance proposals or votes that are currently open");
-        parts.push("- medium: substantive technical or development discussion; grant applications and funding discussions with active back-and-forth; roadmap/planning; notable community or user feedback; ecosystem and adoption news");
-        parts.push("- low: routine procedural announcements (e.g. a grant decision notice with little or no discussion); casual chatter; greetings; quick support Q&A; memes; off-topic conversation");
+        parts.push("- medium: substantive technical or development discussion; grant approvals and funding awards; grant applications and funding discussions with active back-and-forth; roadmap/planning; notable community or user feedback; ecosystem and adoption news");
+        parts.push("- low: routine procedural announcements, including grant rejections or decisions not to advance a proposal; casual chatter; greetings; quick support Q&A; memes; off-topic conversation");
         parts.push("High should be rare — most groups are medium or low. When in doubt between two levels, choose the lower one.");
         parts.push("");
         parts.push("FORMATTING RULES:");

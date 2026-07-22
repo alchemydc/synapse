@@ -220,9 +220,9 @@ describe("AiSdkProcessor", () => {
         expect(prompt).toContain("High should be rare — most groups are medium or low. When in doubt between two levels, choose the lower one.");
         expect(prompt).toContain("Be brief. At most 5 bullets for high importance");
         expect(prompt).toContain("set firstMessageIndex to the [i] number");
-        // Calibration: grants are medium by default, procedural notices low.
-        expect(prompt).toContain("- medium: substantive technical or development discussion; grant applications and funding discussions");
-        expect(prompt).toContain("- low: routine procedural announcements");
+        // Calibration: grant approvals are notable (medium); rejections are routine (low).
+        expect(prompt).toContain("- medium: substantive technical or development discussion; grant approvals and funding awards");
+        expect(prompt).toContain("- low: routine procedural announcements, including grant rejections");
         // Rendering hygiene rules.
         expect(prompt).toContain("Put each bullet on its own line");
         expect(prompt).toContain("do not repeat the channel or topic name");
