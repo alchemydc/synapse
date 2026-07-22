@@ -82,7 +82,7 @@ describe("AiSdkProcessor", () => {
         expect(result.headline).toBe("Generated Headline");
         expect(result.importance).toBe("medium");
         // Topic title links to the first message of the conversation.
-        expect(result.summary).toContain("[Topic A](https://discord.com/channels/123/456/789)");
+        expect(result.summary).toContain("<https://discord.com/channels/123/456/789|Topic A>");
         expect(result.summary).toContain("Generated Summary");
         // Group URL is derived from the messages, never taken from the model.
         expect(result.url).toBe("https://discord.com/channels/123/456");
@@ -248,8 +248,8 @@ describe("AiSdkProcessor", () => {
         const result = await processor.process(messages) as DigestItem;
 
         expect(result.importance).toBe("high");
-        expect(result.summary).toContain("[First convo](https://discord.com/channels/123/456/111)");
-        expect(result.summary).toContain("[Second convo](https://discord.com/channels/123/456/222)");
+        expect(result.summary).toContain("<https://discord.com/channels/123/456/111|First convo>");
+        expect(result.summary).toContain("<https://discord.com/channels/123/456/222|Second convo>");
     });
 
     it("should render an unlinked title when firstMessageIndex is out of range", async () => {
@@ -270,7 +270,34 @@ describe("AiSdkProcessor", () => {
         const result = await processor.process(messages) as DigestItem;
 
         expect(result.summary).toContain("*Hallucinated convo*");
-        expect(result.summary).not.toContain("[Hallucinated convo](");
+        expect(result.summary).not.toContain("|Hallucinated convo>");
+    });
+
+    it("should sanitize model-controlled titles and headlines so they cannot alter link structure", async () => {
+        mockGenerateObject.mockResolvedValue({
+            object: {
+                headline: "Chan <script> & | stuff",
+                importance: "medium",
+                topics: [
+                    { title: "evil](https://evil.com) [x", firstMessageIndex: 1, summary: "- bullet" },
+                    { title: "pipe|and<angle>&amp", firstMessageIndex: 1, summary: "- bullet" },
+                ],
+            }
+        });
+
+        const messages: NormalizedMessage[] = [
+            { id: "1", source: "discord", author: "A", content: "Hello", createdAt: new Date().toISOString(), url: "https://discord.com/channels/123/456/789", channelId: "456", channelName: "general" },
+        ];
+
+        const result = await processor.process(messages) as DigestItem;
+
+        // Injected markdown/mrkdwn link syntax is neutralized; only the real URL appears.
+        expect(result.summary).not.toContain("evil.com)");
+        expect(result.summary).not.toContain("](");
+        expect(result.summary).toContain("<https://discord.com/channels/123/456/789|evilhttps://evil.com x>");
+        // Slack-reserved characters are escaped, structure characters dropped.
+        expect(result.summary).toContain("|pipeand&lt;angle&gt;&amp;amp>");
+        expect(result.headline).toBe("Chan &lt;script&gt; &amp;  stuff");
     });
 
     it("should return a medium-importance fallback when the model output fails validation", async () => {

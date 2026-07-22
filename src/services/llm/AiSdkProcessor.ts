@@ -164,20 +164,23 @@ export class AiSdkProcessor implements Processor {
             // topics, linking each title to the real URL of its first message.
             // Indices reference the same post-truncation array used to number
             // the prompt; anything out of range degrades to an unlinked title.
+            // Titles are emitted as Slack links directly (not markdown) and
+            // sanitized so model-controlled text can't alter link structure.
             const summary = parsed.data.topics.map(t => {
                 const idx = t.firstMessageIndex;
                 const url = Number.isInteger(idx) && idx >= 1 && idx <= truncated.length
                     ? truncated[idx - 1].url
                     : undefined;
-                const title = url ? `[${t.title}](${url})` : t.title;
+                const title = this.sanitizeLinkText(t.title);
+                const linkedTitle = url ? `<${url}|${title}>` : title;
                 // The model occasionally emits literal backslash-n sequences
                 // inside the JSON string; render them as real newlines.
                 const body = t.summary.replace(/\\n/g, "\n");
-                return `- *${title}*\n${body}`;
+                return `- *${linkedTitle}*\n${body}`;
             }).join("\n");
 
             return {
-                headline: parsed.data.headline || defaultHeadline,
+                headline: this.sanitizeLinkText(parsed.data.headline || defaultHeadline),
                 url: groupUrl,
                 summary,
                 importance: parsed.data.importance
@@ -192,6 +195,18 @@ export class AiSdkProcessor implements Processor {
                 importance: "medium"
             };
         }
+    }
+
+    // Model-controlled text rendered inside Slack links (<url|text>) or bold
+    // markers must not carry mrkdwn-reserved or link-structure characters:
+    // escape &, <, > per Slack's rules and drop []()| outright.
+    private sanitizeLinkText(text: string): string {
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/[\[\]()|]/g, "")
+            .trim();
     }
 
     private formatMessageLine(msg: NormalizedMessage): string {
