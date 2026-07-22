@@ -62,6 +62,8 @@ describe('SlackDestination Integration', () => {
             channel: 'C12345',
             text: 'summary',
             blocks: expect.anything(),
+            unfurl_links: false,
+            unfurl_media: false,
         });
     });
 

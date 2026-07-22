@@ -47,8 +47,10 @@ describe("AiSdkProcessor", () => {
         mockGenerateObject.mockResolvedValue({
             object: {
                 headline: "Generated Headline",
-                url: "https://generated.url",
-                summary: "Generated Summary"
+                importance: "medium",
+                topics: [
+                    { title: "Topic A", firstMessageIndex: 1, summary: "- Generated Summary" },
+                ],
             }
         });
 
@@ -77,10 +79,13 @@ describe("AiSdkProcessor", () => {
 
         expect(mockGoogleModel).toHaveBeenCalledWith("gemini-1.5-pro");
         expect(mockGenerateObject).toHaveBeenCalled();
-        expect(result.headline).toBe("Generated Headline"); // Or check if it falls back to default if mocked return is empty?
-        // The mock returns "Generated Headline", so we expect that.
-        // Actually, the code uses `object.headline || defaultHeadline`.
-        expect(result.summary).toBe("Generated Summary");
+        expect(result.headline).toBe("Generated Headline");
+        expect(result.importance).toBe("medium");
+        // Topic title links to the first message of the conversation.
+        expect(result.summary).toContain("[Topic A](https://discord.com/channels/123/456/789)");
+        expect(result.summary).toContain("Generated Summary");
+        // Group URL is derived from the messages, never taken from the model.
+        expect(result.url).toBe("https://discord.com/channels/123/456");
     });
 
     it("should process Discourse messages", async () => {
@@ -100,7 +105,8 @@ describe("AiSdkProcessor", () => {
 
         expect(mockGenerateObject).toHaveBeenCalled();
         expect(result.headline).toBe("Generated Headline");
-        expect(result.summary).toBe("Generated Summary");
+        expect(result.summary).toContain("Generated Summary");
+        expect(result.url).toBe("https://forum.example.com/t/topic-slug/123");
     });
 
     it("should handle empty messages", async () => {
@@ -130,6 +136,7 @@ describe("AiSdkProcessor", () => {
             const result = await promise;
 
             expect(result.summary).toContain("Error generating summary");
+            expect(result.importance).toBe("medium"); // failed groups aren't buried
             expect(mockGenerateObject).toHaveBeenCalledTimes(4); // 1 attempt + 3 retries
         } finally {
             vi.useRealTimers();
@@ -142,7 +149,11 @@ describe("AiSdkProcessor", () => {
             mockGenerateObject
                 .mockRejectedValueOnce(new Error("503 overloaded"))
                 .mockResolvedValueOnce({
-                    object: { headline: "H", url: "U", summary: "Recovered" },
+                    object: {
+                        headline: "H",
+                        importance: "low",
+                        topics: [{ title: "T", firstMessageIndex: 1, summary: "Recovered" }],
+                    },
                 });
 
             const messages: NormalizedMessage[] = [
@@ -153,7 +164,8 @@ describe("AiSdkProcessor", () => {
             await vi.runAllTimersAsync();
             const result = await promise;
 
-            expect(result.summary).toBe("Recovered");
+            expect(result.summary).toContain("Recovered");
+            expect(result.importance).toBe("low");
             expect(mockGenerateObject).toHaveBeenCalledTimes(2);
         } finally {
             vi.useRealTimers();
@@ -193,5 +205,88 @@ describe("AiSdkProcessor", () => {
         expect(prompt).not.toContain("OLDEST ");
         // Kept messages must still read oldest-first.
         expect(prompt.indexOf("MIDDLE")).toBeLessThan(prompt.indexOf("NEWEST"));
+    });
+
+    it("should include the importance rubric and brevity rules in the prompt", async () => {
+        const messages: NormalizedMessage[] = [
+            { id: "1", source: "discord", author: "A", content: "Hello", createdAt: new Date().toISOString(), url: "https://discord.com/channels/123/456/789", channelId: "456", channelName: "general" },
+        ];
+
+        await processor.process(messages);
+
+        const prompt: string = mockGenerateObject.mock.calls[0][0].prompt;
+        expect(prompt).toContain("IMPORTANCE RATING:");
+        expect(prompt).toContain("- high: security vulnerabilities");
+        expect(prompt).toContain("High should be rare — most groups are medium or low. When in doubt between two levels, choose the lower one.");
+        expect(prompt).toContain("Be brief. At most 5 bullets for high importance");
+        expect(prompt).toContain("set firstMessageIndex to the [i] number");
+        // Calibration: grants are medium by default, procedural notices low.
+        expect(prompt).toContain("- medium: substantive technical or development discussion; grant applications and funding discussions");
+        expect(prompt).toContain("- low: routine procedural announcements");
+        // Rendering hygiene rules.
+        expect(prompt).toContain("Put each bullet on its own line");
+        expect(prompt).toContain("do not repeat the channel or topic name");
+    });
+
+    it("should map firstMessageIndex to the real message URL", async () => {
+        mockGenerateObject.mockResolvedValue({
+            object: {
+                headline: "H",
+                importance: "high",
+                topics: [
+                    { title: "First convo", firstMessageIndex: 1, summary: "- bullet one" },
+                    { title: "Second convo", firstMessageIndex: 2, summary: "- bullet two" },
+                ],
+            }
+        });
+
+        const messages: NormalizedMessage[] = [
+            { id: "1", source: "discord", author: "A", content: "Starts convo one", createdAt: "2026-07-21T10:00:00.000Z", url: "https://discord.com/channels/123/456/111", channelId: "456", channelName: "general" },
+            { id: "2", source: "discord", author: "B", content: "Starts convo two", createdAt: "2026-07-21T11:00:00.000Z", url: "https://discord.com/channels/123/456/222", channelId: "456", channelName: "general" },
+        ];
+
+        const result = await processor.process(messages) as DigestItem;
+
+        expect(result.importance).toBe("high");
+        expect(result.summary).toContain("[First convo](https://discord.com/channels/123/456/111)");
+        expect(result.summary).toContain("[Second convo](https://discord.com/channels/123/456/222)");
+    });
+
+    it("should render an unlinked title when firstMessageIndex is out of range", async () => {
+        mockGenerateObject.mockResolvedValue({
+            object: {
+                headline: "H",
+                importance: "medium",
+                topics: [
+                    { title: "Hallucinated convo", firstMessageIndex: 99, summary: "- bullet" },
+                ],
+            }
+        });
+
+        const messages: NormalizedMessage[] = [
+            { id: "1", source: "discord", author: "A", content: "Hello", createdAt: new Date().toISOString(), url: "https://discord.com/channels/123/456/789", channelId: "456", channelName: "general" },
+        ];
+
+        const result = await processor.process(messages) as DigestItem;
+
+        expect(result.summary).toContain("*Hallucinated convo*");
+        expect(result.summary).not.toContain("[Hallucinated convo](");
+    });
+
+    it("should return a medium-importance fallback when the model output fails validation", async () => {
+        // Old shape: no importance/topics — must fail LlmSummarySchema.
+        mockGenerateObject.mockResolvedValue({
+            object: { headline: "H", url: "U", summary: "S" }
+        });
+
+        const messages: NormalizedMessage[] = [
+            { id: "1", source: "discord", author: "A", content: "Hello", createdAt: new Date().toISOString(), url: "https://discord.com/channels/123/456/789", channelId: "456", channelName: "general" },
+        ];
+
+        const result = await processor.process(messages) as DigestItem;
+
+        expect(result.summary).toContain("Error generating summary");
+        expect(result.importance).toBe("medium");
+        expect(result.url).toBe("https://discord.com/channels/123/456");
     });
 });

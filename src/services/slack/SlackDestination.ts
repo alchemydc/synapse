@@ -104,6 +104,8 @@ export class SlackDestination implements Destination {
                     channel: this.config.SLACK_CHANNEL_ID,
                     text: payload.text ?? "",
                     blocks: payload.blocks,
+                    unfurl_links: false,
+                    unfurl_media: false,
                 });
                 return;
             } catch (err: any) {
