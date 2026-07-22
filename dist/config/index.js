@@ -41,6 +41,9 @@ const ConfigSchema = zod_1.z.object({
     // Budget for the LLM response. Gemini 3.x reasoning tokens count against
     // this limit, so it must leave headroom beyond the visible summary text.
     MAX_SUMMARY_TOKENS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(128)).default(4000),
+    // Ceiling on prompt content per conversation group. Bounds worst-case
+    // API cost; well within the model's 1M-token context either way.
+    MAX_INPUT_CHARS_PER_GROUP: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1000)).default(100_000),
     DRY_RUN: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
     DIGEST_WINDOW_HOURS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).default(24),
     LOG_LEVEL: zod_1.z.string().default("info"),
@@ -96,6 +99,7 @@ function loadConfig() {
         dryRun: config.DRY_RUN,
         digestWindowHours: config.DIGEST_WINDOW_HOURS,
         maxSummaryTokens: config.MAX_SUMMARY_TOKENS,
+        maxInputCharsPerGroup: config.MAX_INPUT_CHARS_PER_GROUP,
         logLevel: config.LOG_LEVEL,
         minMessageLength: config.MIN_MESSAGE_LENGTH,
         excludeCommands: config.EXCLUDE_COMMANDS,

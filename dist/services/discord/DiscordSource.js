@@ -60,6 +60,9 @@ class DiscordSource {
                                 done = true;
                                 break;
                             }
+                            // Advance the cursor even for skipped messages —
+                            // a batch of only bot messages must still paginate.
+                            lastId = msg.id;
                             if (msg.author.bot || !msg.content.trim())
                                 continue;
                             messages.push({
@@ -72,7 +75,6 @@ class DiscordSource {
                                 createdAt: new Date(msg.createdTimestamp).toISOString(),
                                 url: msg.url,
                             });
-                            lastId = msg.id;
                         }
                         if (batch.size < 100)
                             break;
