@@ -31,12 +31,14 @@ const ConfigSchema = z.object({
   SLACK_CHANNEL_ID: z.preprocess(toStr, z.string()).optional(),
   GEMINI_API_KEY: z.preprocess(toStr, z.string()).optional(),
 
-  GEMINI_MODEL: z.preprocess(toStr, z.string()).default("gemini-2.5-flash"),
+  GEMINI_MODEL: z.preprocess(toStr, z.string()).default("gemini-3.6-flash"),
 
+  // Budget for the LLM response. Gemini 3.x reasoning tokens count against
+  // this limit, so it must leave headroom beyond the visible summary text.
   MAX_SUMMARY_TOKENS: z.preprocess(
     toNum,
     z.number().int().min(128)
-  ).default(1500),
+  ).default(4000),
 
   DRY_RUN: z.preprocess(
     toBool,

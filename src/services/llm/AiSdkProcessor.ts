@@ -111,7 +111,6 @@ export class AiSdkProcessor implements Processor {
                 schema: DigestItemSchema as any,
                 prompt,
                 maxOutputTokens: this.config.MAX_SUMMARY_TOKENS,
-                temperature: 0.2,
             });
 
             const parsed = DigestItemSchema.safeParse(object);

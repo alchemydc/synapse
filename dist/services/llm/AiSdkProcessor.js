@@ -99,7 +99,6 @@ class AiSdkProcessor {
                 schema: schemas_1.DigestItemSchema,
                 prompt,
                 maxOutputTokens: this.config.MAX_SUMMARY_TOKENS,
-                temperature: 0.2,
             });
             const parsed = schemas_1.DigestItemSchema.safeParse(object);
             if (!parsed.success) {

@@ -28,8 +28,8 @@ describe('Config Service', () => {
 
         const config = loadConfig();
 
-        expect(config.GEMINI_MODEL).toBe('gemini-2.5-flash');
-        expect(config.MAX_SUMMARY_TOKENS).toBe(1500);
+        expect(config.GEMINI_MODEL).toBe('gemini-3.6-flash');
+        expect(config.MAX_SUMMARY_TOKENS).toBe(4000);
         expect(config.DRY_RUN).toBe(true);
         expect(config.DIGEST_WINDOW_HOURS).toBe(24);
         expect(config.LOG_LEVEL).toBe('info');

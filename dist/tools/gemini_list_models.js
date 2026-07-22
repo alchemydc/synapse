@@ -7,15 +7,16 @@ const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const node_fetch_1 = __importDefault(require("node-fetch"));
 const API_KEY = process.env.GEMINI_API_KEY;
-const ENDPOINT = "https://generativelanguage.googleapis.com/v1/models";
+// v1beta matches the endpoint @ai-sdk/google uses; v1 hides newer models.
+const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 async function listModels() {
     if (!API_KEY) {
         console.error("GEMINI_API_KEY not set. Set it in your .env or run: GEMINI_API_KEY=*** npm run models:list");
         process.exit(1);
     }
-    const url = `${ENDPOINT}?key=${API_KEY}`;
+    const url = `${ENDPOINT}?pageSize=1000`;
     try {
-        const res = await (0, node_fetch_1.default)(url);
+        const res = await (0, node_fetch_1.default)(url, { headers: { "x-goog-api-key": API_KEY } });
         if (!res.ok) {
             console.error("Failed to fetch models:", res.status, await res.text());
             process.exit(1);

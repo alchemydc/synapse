@@ -37,8 +37,10 @@ const ConfigSchema = zod_1.z.object({
     SLACK_BOT_TOKEN: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
     SLACK_CHANNEL_ID: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
     GEMINI_API_KEY: zod_1.z.preprocess(toStr, zod_1.z.string()).optional(),
-    GEMINI_MODEL: zod_1.z.preprocess(toStr, zod_1.z.string()).default("gemini-2.5-flash"),
-    MAX_SUMMARY_TOKENS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(128)).default(1500),
+    GEMINI_MODEL: zod_1.z.preprocess(toStr, zod_1.z.string()).default("gemini-3.6-flash"),
+    // Budget for the LLM response. Gemini 3.x reasoning tokens count against
+    // this limit, so it must leave headroom beyond the visible summary text.
+    MAX_SUMMARY_TOKENS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(128)).default(4000),
     DRY_RUN: zod_1.z.preprocess(toBool, zod_1.z.boolean()).default(true),
     DIGEST_WINDOW_HOURS: zod_1.z.preprocess(toNum, zod_1.z.number().int().min(1)).default(24),
     LOG_LEVEL: zod_1.z.string().default("info"),
