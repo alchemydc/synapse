@@ -68,8 +68,9 @@ Synapse is configured via environment variables.
 
 ### LLM (Gemini)
 - `GEMINI_API_KEY`: Your Google Gemini API key.
-- `GEMINI_MODEL`: Model to use (e.g., `gemini-2.5-flash`).
+- `GEMINI_MODEL`: Model to use (default: `gemini-3.6-flash`). Note: `gemini-2.5-flash` is deprecated and shuts down 2026-10-16.
 - `MAX_SUMMARY_TOKENS`: Max tokens for the summary output.
+- `MAX_INPUT_CHARS_PER_GROUP`: Maximum characters of conversation content fed to the model per group (default: `100000`). Caps prompt size to bound API cost.
 
 ### Sources
 - **Discord**: `DISCORD_TOKEN`, `DISCORD_CHANNELS` (comma-separated IDs).

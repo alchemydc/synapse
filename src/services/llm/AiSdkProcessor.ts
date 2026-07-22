@@ -1,6 +1,7 @@
 // src/services/llm/AiSdkProcessor.ts
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { generateObject } from "ai";
+import { generateObject, APICallError } from "ai";
+import pRetry, { AbortError } from "p-retry";
 import { Processor } from "../../core/interfaces";
 import { NormalizedMessage } from "../../core/types";
 import { Config } from "../../config";
@@ -23,6 +24,10 @@ export class AiSdkProcessor implements Processor {
 
     async process(messages: NormalizedMessage[]): Promise<DigestItem | string> {
         if (messages.length === 0) return "";
+
+        // Discord fetches newest-first; present the conversation in reading
+        // order so the model doesn't see replies before questions.
+        messages = [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
         const first = messages[0];
         if (first.source === "discord") {
@@ -48,8 +53,7 @@ export class AiSdkProcessor implements Processor {
             }
         }
 
-        const maxChars = Math.min(this.config.MAX_SUMMARY_TOKENS * 4, 1500);
-        const truncated = this.truncateMessages(messages, maxChars);
+        const truncated = this.truncateMessages(messages, this.config.MAX_INPUT_CHARS_PER_GROUP);
 
         const parts: string[] = [];
         parts.push(`CONTEXT: Discord Channel #${channelName}`);
@@ -57,13 +61,8 @@ export class AiSdkProcessor implements Processor {
         parts.push("");
         parts.push("Summarize the following Discord channel messages.");
         parts.push("");
-        parts.push("FORMATTING RULES:");
-        parts.push("- Identify important conversations naturally");
-        parts.push("- Provide concise bullets");
-        parts.push("- Include participant names inline");
-        parts.push("- Do NOT output acknowledgements");
-        parts.push("");
-        parts.push("Messages:");
+        this.pushSharedRules(parts);
+        parts.push("Messages (in chronological order, oldest first):");
         for (let i = 0; i < truncated.length; i++) {
             parts.push(`[${i + 1}] ${this.formatMessageLine(truncated[i])}`);
         }
@@ -79,8 +78,7 @@ export class AiSdkProcessor implements Processor {
         const topicTitle = first.topicTitle || "Unknown Topic";
         const topicUrl = first.url;
 
-        const maxChars = Math.min(this.config.MAX_SUMMARY_TOKENS * 4, 1500);
-        const truncated = this.truncateMessages(messages, maxChars);
+        const truncated = this.truncateMessages(messages, this.config.MAX_INPUT_CHARS_PER_GROUP);
 
         const parts: string[] = [];
         parts.push(`CONTEXT: Forum Topic "${topicTitle}"`);
@@ -88,13 +86,8 @@ export class AiSdkProcessor implements Processor {
         parts.push("");
         parts.push("Summarize the following forum topic and its replies.");
         parts.push("");
-        parts.push("FORMATTING RULES:");
-        parts.push("- Identify important conversations naturally");
-        parts.push("- Provide concise bullets");
-        parts.push("- Include participant names inline");
-        parts.push("- Do NOT output acknowledgements");
-        parts.push("");
-        parts.push("Messages:");
+        this.pushSharedRules(parts);
+        parts.push("Messages (in chronological order, oldest first):");
         for (let i = 0; i < truncated.length; i++) {
             parts.push(`[${i + 1}] ${this.formatMessageLine(truncated[i])}`);
         }
@@ -103,16 +96,50 @@ export class AiSdkProcessor implements Processor {
         return this.generate(prompt, topicTitle, topicUrl);
     }
 
+    // Rules shared by both prompt builders.
+    private pushSharedRules(parts: string[]): void {
+        parts.push("FORMATTING RULES:");
+        parts.push("- Identify important conversations naturally (security, funding, governance, performance, adoption, community feedback, etc.)");
+        parts.push("- For each significant topic, provide concise bullets");
+        parts.push("- Include participant names inline for significant discussions (e.g., 'Alice and Bob discussed X')");
+        parts.push("- If there are decisions, action items, or shared links, label those sections");
+        parts.push("- Do NOT output acknowledgements, confirmations, or meta-commentary");
+        parts.push("");
+        parts.push("ACCURACY RULES:");
+        parts.push("- Only include facts stated in the messages below. Do not infer decisions or outcomes that are not explicit.");
+        parts.push("- Attribute statements to the correct author as given on each message line.");
+        parts.push("");
+    }
+
     private async generate(prompt: string, defaultHeadline: string, defaultUrl: string): Promise<DigestItem> {
         try {
             const model = this.google(this.config.GEMINI_MODEL);
-            const { object } = await generateObject({
-                model,
-                schema: DigestItemSchema as any,
-                prompt,
-                maxOutputTokens: this.config.MAX_SUMMARY_TOKENS,
-                temperature: 0.2,
-            });
+            const { object } = await pRetry(
+                async () => {
+                    try {
+                        return await generateObject({
+                            model,
+                            schema: DigestItemSchema as any,
+                            prompt,
+                            maxOutputTokens: this.config.MAX_SUMMARY_TOKENS,
+                        });
+                    } catch (err: any) {
+                        // Don't burn retries on errors the API marks permanent
+                        // (auth, bad request); do retry 429/5xx/network and
+                        // parse failures, which are transient.
+                        if (APICallError.isInstance(err) && err.isRetryable === false) {
+                            throw new AbortError(err);
+                        }
+                        throw err;
+                    }
+                },
+                {
+                    retries: 3,
+                    onFailedAttempt: ({ error, attemptNumber, retriesLeft }) => {
+                        logger.warn(`LLM attempt ${attemptNumber} failed (${retriesLeft} retries left): ${error.message}`);
+                    },
+                }
+            );
 
             const parsed = DigestItemSchema.safeParse(object);
             if (!parsed.success) {
@@ -127,7 +154,9 @@ export class AiSdkProcessor implements Processor {
             return {
                 headline: parsed.data.headline || defaultHeadline,
                 url: parsed.data.url || defaultUrl,
-                summary: parsed.data.summary
+                // The model occasionally emits literal backslash-n sequences
+                // inside the JSON string; render them as real newlines.
+                summary: parsed.data.summary.replace(/\\n/g, "\n")
             };
         } catch (err: any) {
             logger.error(`AiSdk generation failed: ${err.message}`);
@@ -155,22 +184,24 @@ export class AiSdkProcessor implements Processor {
         return `[${dateStr} ${tz}] ${msg.author}: ${msg.content}`;
     }
 
+    // Messages arrive oldest-first; when the budget triggers, keep the most
+    // recent messages (the day's conclusion) and drop the oldest instead.
     private truncateMessages(messages: NormalizedMessage[], maxChars: number): NormalizedMessage[] {
         let total = 0;
         const out: NormalizedMessage[] = [];
-        for (const m of messages) {
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const m = messages[i];
             const contentLen = m.content ? m.content.length : 0;
             const remaining = maxChars - total;
 
             if (remaining <= 0) break;
 
             if (contentLen <= remaining) {
-                out.push(m);
+                out.unshift(m);
                 total += contentLen;
             } else {
                 const truncatedContent = m.content ? m.content.slice(0, remaining) + "..." : "";
-                out.push({ ...m, content: truncatedContent });
-                total += truncatedContent.length;
+                out.unshift({ ...m, content: truncatedContent });
                 break;
             }
         }

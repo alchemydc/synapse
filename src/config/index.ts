@@ -31,12 +31,21 @@ const ConfigSchema = z.object({
   SLACK_CHANNEL_ID: z.preprocess(toStr, z.string()).optional(),
   GEMINI_API_KEY: z.preprocess(toStr, z.string()).optional(),
 
-  GEMINI_MODEL: z.preprocess(toStr, z.string()).default("gemini-2.5-flash"),
+  GEMINI_MODEL: z.preprocess(toStr, z.string()).default("gemini-3.6-flash"),
 
+  // Budget for the LLM response. Gemini 3.x reasoning tokens count against
+  // this limit, so it must leave headroom beyond the visible summary text.
   MAX_SUMMARY_TOKENS: z.preprocess(
     toNum,
     z.number().int().min(128)
-  ).default(1500),
+  ).default(4000),
+
+  // Ceiling on prompt content per conversation group. Bounds worst-case
+  // API cost; well within the model's 1M-token context either way.
+  MAX_INPUT_CHARS_PER_GROUP: z.preprocess(
+    toNum,
+    z.number().int().min(1000)
+  ).default(100_000),
 
   DRY_RUN: z.preprocess(
     toBool,
@@ -100,6 +109,7 @@ export type Config = {
   GEMINI_API_KEY?: string;
   GEMINI_MODEL: string;
   MAX_SUMMARY_TOKENS: number;
+  MAX_INPUT_CHARS_PER_GROUP: number;
   DRY_RUN: boolean;
   DIGEST_WINDOW_HOURS: number;
   LOG_LEVEL: string;
@@ -171,6 +181,7 @@ export function loadConfig(): Config {
     dryRun: config.DRY_RUN,
     digestWindowHours: config.DIGEST_WINDOW_HOURS,
     maxSummaryTokens: config.MAX_SUMMARY_TOKENS,
+    maxInputCharsPerGroup: config.MAX_INPUT_CHARS_PER_GROUP,
     logLevel: config.LOG_LEVEL,
     minMessageLength: config.MIN_MESSAGE_LENGTH,
     excludeCommands: config.EXCLUDE_COMMANDS,
