@@ -8,6 +8,29 @@ import { applyMessageFilters } from "./utils/filters";
 import { buildDigestBlocks, formatDigest } from "./utils/format";
 import { DigestItem } from "./core/schemas";
 
+export interface DigestEntry {
+    result: string | DigestItem;
+    messageCount: number;
+    key: string;
+}
+
+const IMPORTANCE_RANK = { high: 0, medium: 1, low: 2 } as const;
+
+// Deterministic ordering: importance first (missing importance ranks as
+// medium, plain strings last), then busier groups first, then group key.
+export function sortDigestEntries(entries: DigestEntry[]): DigestEntry[] {
+    const rankOf = (r: string | DigestItem): number =>
+        typeof r === "string" ? 3 : IMPORTANCE_RANK[r.importance ?? "medium"];
+
+    return [...entries].sort((a, b) => {
+        const ra = rankOf(a.result);
+        const rb = rankOf(b.result);
+        if (ra !== rb) return ra - rb;
+        if (a.messageCount !== b.messageCount) return b.messageCount - a.messageCount;
+        return a.key.localeCompare(b.key);
+    });
+}
+
 export class DigestPipeline {
     private sources: Source[] = [];
     private destinations: Destination[] = [];
@@ -68,7 +91,7 @@ export class DigestPipeline {
 
         logger.info(`Processing ${groups.size} conversation groups...`);
 
-        const summaries: (string | DigestItem)[] = [];
+        const entries: DigestEntry[] = [];
 
         // 3. Process (Summarize)
         for (const [key, messages] of groups) {
@@ -82,26 +105,38 @@ export class DigestPipeline {
             try {
                 const result = await this.processor.process(filtered);
                 if (typeof result === 'string') {
-                    if (result.trim()) summaries.push(result);
+                    if (result.trim()) entries.push({ result, messageCount: filtered.length, key });
                 } else {
-                    summaries.push(result);
+                    entries.push({ result, messageCount: filtered.length, key });
                 }
             } catch (err: any) {
                 logger.error(`Failed to process group ${key}: ${err.message}`);
             }
         }
 
-        if (summaries.length === 0) {
+        if (entries.length === 0) {
             logger.info("No summaries generated.");
             return;
         }
 
+        // Rank groups by importance before formatting so blocks and fallback
+        // text agree on ordering.
+        const summaries = sortDigestEntries(entries).map(e => e.result);
+
         // 4. Format & Send
-        // Generate fallback text by converting items to markdown
-        const combinedSummary = summaries.map(s => {
+        // Generate fallback text by converting items to markdown; low-importance
+        // items collapse into a single links line, mirroring the block rendering.
+        const mainItems = summaries.filter(s => typeof s === 'string' || s.importance !== 'low');
+        const lowItems = summaries.filter((s): s is DigestItem => typeof s !== 'string' && s.importance === 'low');
+
+        const fallbackParts = mainItems.map(s => {
             if (typeof s === 'string') return s;
             return `## [${s.headline}](${s.url})\n\n${s.summary}`;
-        }).join("\n\n");
+        });
+        if (lowItems.length > 0) {
+            fallbackParts.push(`Also active: ${lowItems.map(s => `[${s.headline}](${s.url})`).join(", ")}`);
+        }
+        const combinedSummary = fallbackParts.join("\n\n");
 
         const blockSets = buildDigestBlocks({
             items: summaries,

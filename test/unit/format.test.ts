@@ -103,6 +103,7 @@ describe("buildDigestBlocks", () => {
     expect(blocks[0].text.text).toContain("Community Digest — 2025-08-27 (UTC)");
     expect(blocks[1].type).toBe("context");
     expect(blocks[1].elements[0].text).toContain("Time window: 2025-08-27 00:00–2025-08-28 00:00 UTC");
+    expect(blocks[1].elements[1].text).toBe("🔴 urgent · 🟡 notable · ⚪ routine");
     expect(blocks[2].type).toBe("divider");
     expect(blocks[3].type).toBe("section");
     expect(blocks[3].text.text).toContain("Some summary text");
@@ -124,5 +125,81 @@ describe("buildDigestBlocks", () => {
     expect(blocks[3].type).toBe("section");
     expect(blocks[3].text.text).toContain("*<https://discord.com/channels/123/456|My Channel>*");
     expect(blocks[3].text.text).toContain("Summary content");
+  });
+
+  it("prefixes importance markers on high and medium items", () => {
+    const blockSets = buildDigestBlocks({
+      items: [
+        { headline: "Security", url: "https://x/1", summary: "vuln", importance: "high" },
+        { headline: "Dev", url: "https://x/2", summary: "refactor", importance: "medium" },
+      ],
+      start: new Date("2025-08-27T00:00:00Z"),
+      end: new Date("2025-08-28T00:00:00Z"),
+      dateTitle: "2025-08-27",
+    });
+    const sections = blockSets[0].filter((b: any) => b.type === "section").map((b: any) => b.text.text);
+    expect(sections[0].startsWith("🔴 *<https://x/1|Security>*")).toBe(true);
+    expect(sections[1].startsWith("🟡 *<https://x/2|Dev>*")).toBe(true);
+  });
+
+  it("renders items without importance unchanged (no marker)", () => {
+    const blockSets = buildDigestBlocks({
+      items: [{ headline: "Plain", url: "https://x/1", summary: "text" }],
+      start: new Date("2025-08-27T00:00:00Z"),
+      end: new Date("2025-08-28T00:00:00Z"),
+      dateTitle: "2025-08-27",
+    });
+    const section = blockSets[0][3];
+    expect(section.text.text.startsWith("*<https://x/1|Plain>*")).toBe(true);
+  });
+
+  it("collapses low-importance items into a single 'Also active' section", () => {
+    const blockSets = buildDigestBlocks({
+      items: [
+        { headline: "Security", url: "https://x/1", summary: "vuln", importance: "high" },
+        { headline: "#casual", url: "https://x/2", summary: "chatter", importance: "low" },
+        { headline: "#random", url: "https://x/3", summary: "memes", importance: "low" },
+      ],
+      start: new Date("2025-08-27T00:00:00Z"),
+      end: new Date("2025-08-28T00:00:00Z"),
+      dateTitle: "2025-08-27",
+    });
+    const sections = blockSets[0].filter((b: any) => b.type === "section").map((b: any) => b.text.text);
+    expect(sections).toHaveLength(2);
+    expect(sections[1]).toContain("⚪ *Also active:*");
+    expect(sections[1]).toContain("<https://x/2|#casual>");
+    expect(sections[1]).toContain("<https://x/3|#random>");
+    // Low items must not get full sections.
+    expect(sections.some((t: string) => t.includes("chatter"))).toBe(false);
+  });
+
+  it("carries the legend into [continued] block sets", () => {
+    // Enough items to exceed the 45-block budget and force a split.
+    const items = Array.from({ length: 30 }, (_, i) => `Item ${i} content`);
+    const blockSets = buildDigestBlocks({
+      items,
+      start: new Date("2025-08-27T00:00:00Z"),
+      end: new Date("2025-08-28T00:00:00Z"),
+      dateTitle: "2025-08-27",
+    });
+    expect(blockSets.length).toBeGreaterThan(1);
+    for (const blocks of blockSets) {
+      expect(blocks[1].type).toBe("context");
+      expect(blocks[1].elements[1].text).toBe("🔴 urgent · 🟡 notable · ⚪ routine");
+    }
+  });
+
+  it("renders only the 'Also active' line when all items are low", () => {
+    const blockSets = buildDigestBlocks({
+      items: [
+        { headline: "#casual", url: "https://x/1", summary: "chatter", importance: "low" },
+      ],
+      start: new Date("2025-08-27T00:00:00Z"),
+      end: new Date("2025-08-28T00:00:00Z"),
+      dateTitle: "2025-08-27",
+    });
+    const sections = blockSets[0].filter((b: any) => b.type === "section").map((b: any) => b.text.text);
+    expect(sections).toHaveLength(1);
+    expect(sections[0]).toContain("⚪ *Also active:* <https://x/1|#casual>");
   });
 });
