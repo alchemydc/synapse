@@ -47,10 +47,12 @@ export function buildDigestBlocks(params: {
 
   const range = `Time window: ${params.dateTitle} 00:00–${params.end.toISOString().slice(0, 10)} 00:00 UTC`;
 
+  const legend = "🔴 urgent · 🟡 notable · ⚪ routine";
+
   // Start with header blocks
   const headerBlocks: any[] = [
     { type: "header", text: { type: "plain_text", text: `Community Digest — ${params.dateTitle} (UTC)` } },
-    { type: "context", elements: [{ type: "mrkdwn", text: range }] },
+    { type: "context", elements: [{ type: "mrkdwn", text: range }, { type: "mrkdwn", text: legend }] },
     { type: "divider" },
   ];
 
@@ -60,20 +62,31 @@ export function buildDigestBlocks(params: {
   const allBlockSets: any[][] = [];
   let currentBlocks = [...headerBlocks];
 
-  for (let i = 0; i < params.items.length; i++) {
-    const item = params.items[i];
-    let sectionContent = "";
+  // Items arrive pre-sorted by importance. Low-importance items collapse
+  // into a single "Also active" links line instead of full sections.
+  const mainItems = params.items.filter(it => typeof it === 'string' || it.importance !== 'low');
+  const lowItems = params.items.filter((it): it is DigestItem => typeof it !== 'string' && it.importance === 'low');
 
+  const IMPORTANCE_MARKER: Record<string, string> = { high: "🔴 ", medium: "🟡 " };
+
+  const sections: string[] = [];
+  for (const item of mainItems) {
     if (typeof item === 'string') {
-      sectionContent = normalizeToSlackMrkdwn(item);
+      sections.push(normalizeToSlackMrkdwn(item));
     } else {
-      const header = `*<${item.url}|${item.headline}>*`;
+      const marker = item.importance ? IMPORTANCE_MARKER[item.importance] || "" : "";
+      const header = `${marker}*<${item.url}|${item.headline}>*`;
       const body = normalizeToSlackMrkdwn(item.summary);
-      sectionContent = `${header}\n\n${body}`;
+      sections.push(`${header}\n\n${body}`);
     }
+  }
+  if (lowItems.length > 0) {
+    sections.push(`⚪ *Also active:* ${lowItems.map(it => `<${it.url}|${it.headline}>`).join(", ")}`);
+  }
 
+  for (let i = 0; i < sections.length; i++) {
     // Create section block for this topic (truncate if needed)
-    const sectionText = truncateSection(sectionContent, MAX_SECTION_CHARS);
+    const sectionText = truncateSection(sections[i], MAX_SECTION_CHARS);
 
     if (!sectionText) continue;
 
@@ -87,7 +100,7 @@ export function buildDigestBlocks(params: {
       allBlockSets.push(currentBlocks);
       currentBlocks = [
         { type: "header", text: { type: "plain_text", text: `Community Digest — ${params.dateTitle} (UTC) [continued]` } },
-        { type: "context", elements: [{ type: "mrkdwn", text: range }] },
+        { type: "context", elements: [{ type: "mrkdwn", text: range }, { type: "mrkdwn", text: legend }] },
         { type: "divider" },
       ];
     }
@@ -96,7 +109,7 @@ export function buildDigestBlocks(params: {
     currentBlocks.push(topicBlock);
 
     // Add divider between topics (but not after the last one in a set)
-    if (i < params.items.length - 1) {
+    if (i < sections.length - 1) {
       currentBlocks.push({ type: "divider" });
     }
   }

@@ -6,7 +6,7 @@ import { Processor } from "../../core/interfaces";
 import { NormalizedMessage } from "../../core/types";
 import { Config } from "../../config";
 import { logger } from "../../utils/logger";
-import { DigestItem, DigestItemSchema } from "../../core/schemas";
+import { DigestItem, LlmSummarySchema } from "../../core/schemas";
 
 export class AiSdkProcessor implements Processor {
     name = "ai-sdk-google";
@@ -68,7 +68,7 @@ export class AiSdkProcessor implements Processor {
         }
 
         const prompt = parts.join("\n");
-        return this.generate(prompt, `#${channelName}`, realChannelUrl);
+        return this.generate(prompt, `#${channelName}`, realChannelUrl, truncated);
     }
 
     private async summarizeDiscourse(messages: NormalizedMessage[]): Promise<DigestItem> {
@@ -93,16 +93,25 @@ export class AiSdkProcessor implements Processor {
         }
 
         const prompt = parts.join("\n");
-        return this.generate(prompt, topicTitle, topicUrl);
+        return this.generate(prompt, topicTitle, topicUrl, truncated);
     }
 
     // Rules shared by both prompt builders.
     private pushSharedRules(parts: string[]): void {
+        parts.push("IMPORTANCE RATING:");
+        parts.push("Classify this conversation group's overall importance as exactly one of \"high\", \"medium\", or \"low\":");
+        parts.push("- high: security vulnerabilities or incidents; outages or urgent operational issues; releases, network upgrades, or breaking changes that require users to act; major governance proposals or votes that are currently open");
+        parts.push("- medium: substantive technical or development discussion; grant approvals and funding awards; grant applications and funding discussions with active back-and-forth; roadmap/planning; notable community or user feedback; ecosystem and adoption news");
+        parts.push("- low: routine procedural announcements, including grant rejections or decisions not to advance a proposal; casual chatter; greetings; quick support Q&A; memes; off-topic conversation");
+        parts.push("High should be rare — most groups are medium or low. When in doubt between two levels, choose the lower one.");
+        parts.push("");
         parts.push("FORMATTING RULES:");
-        parts.push("- Identify important conversations naturally (security, funding, governance, performance, adoption, community feedback, etc.)");
-        parts.push("- For each significant topic, provide concise bullets");
+        parts.push("- Be brief. At most 5 bullets for high importance, 3 for medium, 2 for low; one sentence per bullet, max ~25 words.");
+        parts.push("- Put each bullet on its own line, starting with \"- \".");
+        parts.push("- For each distinct conversation, set firstMessageIndex to the [i] number of the message that started it.");
+        parts.push("- Conversation titles must describe the specific discussion; do not repeat the channel or topic name.");
         parts.push("- Include participant names inline for significant discussions (e.g., 'Alice and Bob discussed X')");
-        parts.push("- If there are decisions, action items, or shared links, label those sections");
+        parts.push("- If there are explicit decisions or action items, prefix those bullets \"Decision:\" or \"Action:\"");
         parts.push("- Do NOT output acknowledgements, confirmations, or meta-commentary");
         parts.push("");
         parts.push("ACCURACY RULES:");
@@ -111,7 +120,7 @@ export class AiSdkProcessor implements Processor {
         parts.push("");
     }
 
-    private async generate(prompt: string, defaultHeadline: string, defaultUrl: string): Promise<DigestItem> {
+    private async generate(prompt: string, defaultHeadline: string, groupUrl: string, truncated: NormalizedMessage[]): Promise<DigestItem> {
         try {
             const model = this.google(this.config.GEMINI_MODEL);
             const { object } = await pRetry(
@@ -119,7 +128,7 @@ export class AiSdkProcessor implements Processor {
                     try {
                         return await generateObject({
                             model,
-                            schema: DigestItemSchema as any,
+                            schema: LlmSummarySchema as any,
                             prompt,
                             maxOutputTokens: this.config.MAX_SUMMARY_TOKENS,
                         });
@@ -141,32 +150,63 @@ export class AiSdkProcessor implements Processor {
                 }
             );
 
-            const parsed = DigestItemSchema.safeParse(object);
+            const parsed = LlmSummarySchema.safeParse(object);
             if (!parsed.success) {
                 return {
                     headline: defaultHeadline,
-                    url: defaultUrl,
-                    summary: "Error generating summary."
+                    url: groupUrl,
+                    summary: "Error generating summary.",
+                    importance: "medium"
                 };
             }
 
-            // Fallback if model hallucinates empty fields, though schema enforces strings.
-            return {
-                headline: parsed.data.headline || defaultHeadline,
-                url: parsed.data.url || defaultUrl,
+            // Compose the digest summary from the model's per-conversation
+            // topics, linking each title to the real URL of its first message.
+            // Indices reference the same post-truncation array used to number
+            // the prompt; anything out of range degrades to an unlinked title.
+            // Titles are emitted as Slack links directly (not markdown) and
+            // sanitized so model-controlled text can't alter link structure.
+            const summary = parsed.data.topics.map(t => {
+                const idx = t.firstMessageIndex;
+                const url = Number.isInteger(idx) && idx >= 1 && idx <= truncated.length
+                    ? truncated[idx - 1].url
+                    : undefined;
+                const title = this.sanitizeLinkText(t.title);
+                const linkedTitle = url ? `<${url}|${title}>` : title;
                 // The model occasionally emits literal backslash-n sequences
                 // inside the JSON string; render them as real newlines.
-                summary: parsed.data.summary.replace(/\\n/g, "\n")
+                const body = t.summary.replace(/\\n/g, "\n");
+                return `- *${linkedTitle}*\n${body}`;
+            }).join("\n");
+
+            return {
+                headline: this.sanitizeLinkText(parsed.data.headline || defaultHeadline),
+                url: groupUrl,
+                summary,
+                importance: parsed.data.importance
             };
         } catch (err: any) {
             logger.error(`AiSdk generation failed: ${err.message}`);
             // Return a fallback DigestItem
             return {
                 headline: defaultHeadline,
-                url: defaultUrl,
-                summary: "Error generating summary."
+                url: groupUrl,
+                summary: "Error generating summary.",
+                importance: "medium"
             };
         }
+    }
+
+    // Model-controlled text rendered inside Slack links (<url|text>) or bold
+    // markers must not carry mrkdwn-reserved or link-structure characters:
+    // escape &, <, > per Slack's rules and drop []()| outright.
+    private sanitizeLinkText(text: string): string {
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/[\[\]()|]/g, "")
+            .trim();
     }
 
     private formatMessageLine(msg: NormalizedMessage): string {
