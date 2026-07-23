@@ -40,6 +40,37 @@ describe('Config Service', () => {
         expect(config.ENABLE_DISCOURSE).toBe(true);
     });
 
+    it('should fall back to defaults when env vars are empty strings', () => {
+        // GitHub Actions interpolates an unset `${{ vars.X }}` to "" (present,
+        // not undefined). Empty strings must resolve to the code defaults
+        // rather than failing validation — this was the prod digest crash.
+        process.env.GEMINI_MODEL = '';
+        process.env.MAX_SUMMARY_TOKENS = '';
+        process.env.MAX_INPUT_CHARS_PER_GROUP = '';
+        process.env.DRY_RUN = '';
+        process.env.DIGEST_WINDOW_HOURS = '';
+        process.env.LOG_LEVEL = '';
+        process.env.MIN_MESSAGE_LENGTH = '';
+        process.env.EXCLUDE_COMMANDS = '';
+        process.env.EXCLUDE_LINK_ONLY = '';
+        process.env.ENABLE_DISCORD = '';
+        process.env.ENABLE_DISCOURSE = '';
+
+        const config = loadConfig();
+
+        expect(config.GEMINI_MODEL).toBe('gemini-3.6-flash');
+        expect(config.MAX_SUMMARY_TOKENS).toBe(4000);
+        expect(config.MAX_INPUT_CHARS_PER_GROUP).toBe(100000);
+        expect(config.DRY_RUN).toBe(true);
+        expect(config.DIGEST_WINDOW_HOURS).toBe(24);
+        expect(config.LOG_LEVEL).toBe('info');
+        expect(config.MIN_MESSAGE_LENGTH).toBe(20);
+        expect(config.EXCLUDE_COMMANDS).toBe(true);
+        expect(config.EXCLUDE_LINK_ONLY).toBe(true);
+        expect(config.ENABLE_DISCORD).toBe(true);
+        expect(config.ENABLE_DISCOURSE).toBe(true);
+    });
+
     it('should override defaults with environment variables', () => {
         process.env.GEMINI_MODEL = 'gemini-pro';
         process.env.MAX_SUMMARY_TOKENS = '2000';

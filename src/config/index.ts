@@ -31,55 +31,60 @@ const ConfigSchema = z.object({
   SLACK_CHANNEL_ID: z.preprocess(toStr, z.string()).optional(),
   GEMINI_API_KEY: z.preprocess(toStr, z.string()).optional(),
 
-  GEMINI_MODEL: z.preprocess(toStr, z.string()).default("gemini-3.6-flash"),
+  // Defaults live inside the preprocess so they apply when an env var is
+  // absent OR empty. In GitHub Actions an unset `${{ vars.X }}` interpolates
+  // to "" (present, not undefined); toStr/toNum/toBool normalize "" to
+  // undefined, and the inner .default() then fires. Placing .default() on the
+  // outer preprocess would be skipped for "" and cause validation to throw.
+  GEMINI_MODEL: z.preprocess(toStr, z.string().default("gemini-3.6-flash")),
 
   // Budget for the LLM response. Gemini 3.x reasoning tokens count against
   // this limit, so it must leave headroom beyond the visible summary text.
   MAX_SUMMARY_TOKENS: z.preprocess(
     toNum,
-    z.number().int().min(128)
-  ).default(4000),
+    z.number().int().min(128).default(4000)
+  ),
 
   // Ceiling on prompt content per conversation group. Bounds worst-case
   // API cost; well within the model's 1M-token context either way.
   MAX_INPUT_CHARS_PER_GROUP: z.preprocess(
     toNum,
-    z.number().int().min(1000)
-  ).default(100_000),
+    z.number().int().min(1000).default(100_000)
+  ),
 
   DRY_RUN: z.preprocess(
     toBool,
-    z.boolean()
-  ).default(true),
+    z.boolean().default(true)
+  ),
 
   DIGEST_WINDOW_HOURS: z.preprocess(
     toNum,
-    z.number().int().min(1)
-  ).default(24),
+    z.number().int().min(1).default(24)
+  ),
 
-  LOG_LEVEL: z.string().default("info"),
+  LOG_LEVEL: z.preprocess(toStr, z.string().default("info")),
 
   MIN_MESSAGE_LENGTH: z.preprocess(
     toNum,
-    z.number().int().min(1)
-  ).default(20),
+    z.number().int().min(1).default(20)
+  ),
 
   EXCLUDE_COMMANDS: z.preprocess(
     toBool,
-    z.boolean()
-  ).default(true),
+    z.boolean().default(true)
+  ),
 
   EXCLUDE_LINK_ONLY: z.preprocess(
     toBool,
-    z.boolean()
-  ).default(true),
+    z.boolean().default(true)
+  ),
 
 
 
 
   // Per-source enable flags (keep defaults but allow explicit unset)
-  ENABLE_DISCORD: z.preprocess(toBool, z.boolean()).optional().default(true),
-  ENABLE_DISCOURSE: z.preprocess(toBool, z.boolean()).optional().default(true),
+  ENABLE_DISCORD: z.preprocess(toBool, z.boolean().default(true)),
+  ENABLE_DISCOURSE: z.preprocess(toBool, z.boolean().default(true)),
 
 
   // Discourse-related optional settings
