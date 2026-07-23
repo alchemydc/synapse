@@ -28,6 +28,11 @@ updates:
       - automated
     commit-message:
       prefix: "chore"
+    ignore:
+      # @types/node major must track the Node runtime (engines: ">=24 <25").
+      # Allow 24.x patch/minor; block the jump to 25.x. See commit 236691a.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"
