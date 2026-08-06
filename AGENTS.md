@@ -11,7 +11,7 @@ Synapse is a **batch, run-to-completion** community digest bot: it fetches a day
 ```bash
 npm run build          # tsc -> dist/  (also runs automatically via prestart before npm start)
 npm start              # run the compiled build (production entrypoint)
-npm run dev            # run from source with ts-node-dev + hot reload
+npm run dev            # run from source via tsx (no watch — this is a one-shot job)
 npm test               # vitest run (all unit + integration tests)
 npm run test:watch     # vitest watch mode
 npx vitest run test/unit/config.test.ts        # run a single test file
