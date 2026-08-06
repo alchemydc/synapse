@@ -31,6 +31,15 @@ const ConfigSchema = z.object({
   SLACK_CHANNEL_ID: z.preprocess(toStr, z.string()).optional(),
   GEMINI_API_KEY: z.preprocess(toStr, z.string()).optional(),
 
+  // Comma-separated names of the projects this organization maintains. Fed into
+  // the prompt's importance rubric so bug reports against our own software rate
+  // high. Optional: unset simply drops the parenthetical from the rubric.
+  // `.optional()` sits INSIDE the preprocess for the same reason `.default()`
+  // does above — an unset `${{ vars.MAINTAINED_PROJECTS }}` arrives as "", which
+  // toStr maps to undefined; an outer `.optional()` would be skipped and the
+  // inner z.string() would reject it.
+  MAINTAINED_PROJECTS: z.preprocess(toStr, z.string().optional()),
+
   // Defaults live inside the preprocess so they apply when an env var is
   // absent OR empty. In GitHub Actions an unset `${{ vars.X }}` interpolates
   // to "" (present, not undefined); toStr/toNum/toBool normalize "" to
@@ -112,6 +121,7 @@ export type Config = {
   SLACK_BOT_TOKEN?: string;
   SLACK_CHANNEL_ID?: string;
   GEMINI_API_KEY?: string;
+  MAINTAINED_PROJECTS: string[]; // parsed to array; may be empty
   GEMINI_MODEL: string;
   MAX_SUMMARY_TOKENS: number;
   MAX_INPUT_CHARS_PER_GROUP: number;
@@ -154,12 +164,14 @@ export function loadConfig(): Config {
   }
   const raw = parsed.data;
   const configBaseChannels = (raw.DISCORD_CHANNELS ?? "").split(",").map((id: string) => id.trim()).filter(Boolean);
+  const maintainedProjects = (raw.MAINTAINED_PROJECTS ?? "").split(",").map((p: string) => p.trim()).filter(Boolean);
 
   const discoBase = normalizeBaseUrl(raw.DISCOURSE_BASE_URL);
 
   const config: Config = {
     ...raw,
     DISCORD_CHANNELS: configBaseChannels,
+    MAINTAINED_PROJECTS: maintainedProjects,
     ENABLE_DISCORD: raw.ENABLE_DISCORD,
     ENABLE_DISCOURSE: raw.ENABLE_DISCOURSE,
 
@@ -191,6 +203,7 @@ export function loadConfig(): Config {
     minMessageLength: config.MIN_MESSAGE_LENGTH,
     excludeCommands: config.EXCLUDE_COMMANDS,
     excludeLinkOnly: config.EXCLUDE_LINK_ONLY,
+    maintainedProjectsCount: config.MAINTAINED_PROJECTS.length,
     enableFlags: {
       enableDiscord: raw.ENABLE_DISCORD,
       enableDiscourse: raw.ENABLE_DISCOURSE,

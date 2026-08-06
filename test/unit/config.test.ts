@@ -55,12 +55,14 @@ describe('Config Service', () => {
         process.env.EXCLUDE_LINK_ONLY = '';
         process.env.ENABLE_DISCORD = '';
         process.env.ENABLE_DISCOURSE = '';
+        process.env.MAINTAINED_PROJECTS = '';
 
         const config = loadConfig();
 
         expect(config.GEMINI_MODEL).toBe('gemini-3.6-flash');
         expect(config.MAX_SUMMARY_TOKENS).toBe(4000);
         expect(config.MAX_INPUT_CHARS_PER_GROUP).toBe(100000);
+        expect(config.MAINTAINED_PROJECTS).toEqual([]);
         expect(config.DRY_RUN).toBe(true);
         expect(config.DIGEST_WINDOW_HOURS).toBe(24);
         expect(config.LOG_LEVEL).toBe('info');
@@ -110,6 +112,14 @@ describe('Config Service', () => {
     it('should correctly parse number values', () => {
         process.env.MAX_SUMMARY_TOKENS = ' 1000 ';
         expect(loadConfig().MAX_SUMMARY_TOKENS).toBe(1000);
+    });
+
+    it('should parse MAINTAINED_PROJECTS into a trimmed list', () => {
+        process.env.MAINTAINED_PROJECTS = 'Zebra, zcashd ,,Zallet';
+        expect(loadConfig().MAINTAINED_PROJECTS).toEqual(['Zebra', 'zcashd', 'Zallet']);
+
+        delete process.env.MAINTAINED_PROJECTS;
+        expect(loadConfig().MAINTAINED_PROJECTS).toEqual([]);
     });
 
     it('should derive DISCORD_ENABLED correctly', () => {

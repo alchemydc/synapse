@@ -31,6 +31,7 @@ describe("AiSdkProcessor", () => {
             MAX_INPUT_CHARS_PER_GROUP: 100000,
             // ... other required config props
             DISCORD_CHANNELS: [],
+            MAINTAINED_PROJECTS: [],
             DRY_RUN: true,
             DIGEST_WINDOW_HOURS: 24,
             LOG_LEVEL: "info",
@@ -217,15 +218,59 @@ describe("AiSdkProcessor", () => {
         const prompt: string = mockGenerateObject.mock.calls[0][0].prompt;
         expect(prompt).toContain("IMPORTANCE RATING:");
         expect(prompt).toContain("- high: security vulnerabilities");
-        expect(prompt).toContain("High should be rare — most groups are medium or low. When in doubt between two levels, choose the lower one.");
+        expect(prompt).toContain("High should be rare — most groups are medium or low. When in doubt between two levels, choose the lower one, except for security issues and bug reports in software this organization maintains, which always rate high.");
         expect(prompt).toContain("Be brief. At most 5 bullets for high importance");
         expect(prompt).toContain("set firstMessageIndex to the [i] number");
         // Calibration: grant approvals are notable (medium); rejections are routine (low).
-        expect(prompt).toContain("- medium: substantive technical or development discussion; grant approvals and funding awards");
+        expect(prompt).toContain("grant approvals and funding awards");
         expect(prompt).toContain("- low: routine procedural announcements, including grant rejections");
         // Rendering hygiene rules.
         expect(prompt).toContain("Put each bullet on its own line");
         expect(prompt).toContain("do not repeat the channel or topic name");
+    });
+
+    it("rates a group by its most important conversation rather than averaging", async () => {
+        // A single high-signal bug report inside an otherwise routine thread was
+        // being diluted to medium because the rubric asked for "overall" importance.
+        const messages: NormalizedMessage[] = [
+            { id: "1", source: "discord", author: "A", content: "Hello", createdAt: new Date().toISOString(), url: "https://discord.com/channels/123/456/789", channelId: "456", channelName: "general" },
+        ];
+
+        await processor.process(messages);
+
+        const prompt: string = mockGenerateObject.mock.calls[0][0].prompt;
+        expect(prompt).toContain("Rate the group at the importance of its single most important conversation — do not average across the group.");
+        expect(prompt).toContain("One high-importance report in an otherwise routine thread makes the whole group high.");
+    });
+
+    it("names the maintained projects in the rubric when MAINTAINED_PROJECTS is set", async () => {
+        const scoped = new AiSdkProcessor({ ...config, MAINTAINED_PROJECTS: ["Zebra", "zcashd"] } as Config);
+        const messages: NormalizedMessage[] = [
+            { id: "1", source: "discourse", author: "cartesien", content: "banned peer addr logged 300k times", createdAt: new Date().toISOString(), url: "https://forum.example.com/t/zebra-release/1/3", topicId: 1, topicTitle: "Zebra 6.2.3 release" },
+        ];
+
+        await scoped.process(messages);
+
+        const prompt: string = mockGenerateObject.mock.calls[0][0].prompt;
+        // Bug reports against our own software are high, not medium.
+        expect(prompt).toContain("bug reports, defects, regressions, crashes, or resource-exhaustion problems in software this organization maintains (Zebra, zcashd)");
+        // Medium is scoped so bug reports can't fall through to it.
+        expect(prompt).toContain("substantive technical or development discussion that is not a bug report in software this organization maintains (Zebra, zcashd)");
+        // The tie-break carve-out names them too.
+        expect(prompt).toContain("except for security issues and bug reports in software this organization maintains (Zebra, zcashd), which always rate high.");
+    });
+
+    it("omits the project parenthetical when MAINTAINED_PROJECTS is unset", async () => {
+        const messages: NormalizedMessage[] = [
+            { id: "1", source: "discord", author: "A", content: "Hello", createdAt: new Date().toISOString(), url: "https://discord.com/channels/123/456/789", channelId: "456", channelName: "general" },
+        ];
+
+        await processor.process(messages);
+
+        const prompt: string = mockGenerateObject.mock.calls[0][0].prompt;
+        expect(prompt).toContain("bug reports, defects, regressions, crashes, or resource-exhaustion problems in software this organization maintains, including");
+        // No empty parenthetical left behind.
+        expect(prompt).not.toContain("maintains ()");
     });
 
     it("should map firstMessageIndex to the real message URL", async () => {

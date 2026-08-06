@@ -86,6 +86,7 @@ Required workflow variables (minimum):
 - `MIN_MESSAGE_LENGTH`
 - `EXCLUDE_COMMANDS`
 - `EXCLUDE_LINK_ONLY`
+- `MAINTAINED_PROJECTS` (optional; comma-separated, e.g. `Zebra,zcashd,Zallet`. Names the projects whose bug reports must rate `high` in the importance rubric.)
 
 ## 6) Operations: Daily Checks
 

@@ -79,6 +79,9 @@ Synapse is configured via environment variables.
 ### Destination
 - **Slack**: `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_ID`.
 
+### Triage
+- `MAINTAINED_PROJECTS`: Comma-separated names of the projects this organization maintains (e.g. `Zebra,zcashd,Zallet`). Optional. The importance rubric names these projects so bug reports, regressions, and crashes against them rate 🔴 `high` rather than 🟡 `medium`. Left unset, the rule still applies but the rubric says only "software this organization maintains".
+
 ## Scripts
 
 - `npm run dev`: Run in development mode with hot-reloading.
