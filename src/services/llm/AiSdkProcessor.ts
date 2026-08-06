@@ -96,14 +96,22 @@ export class AiSdkProcessor implements Processor {
         return this.generate(prompt, topicTitle, topicUrl, truncated);
     }
 
-    // Rules shared by both prompt builders.
+    // Rules shared by both prompt builders. The "our software" phrasing is
+    // parameterized by MAINTAINED_PROJECTS so the rubric can name the projects
+    // whose bug reports must rate high without hardcoding them here.
     private pushSharedRules(parts: string[]): void {
+        const projects = this.config.MAINTAINED_PROJECTS;
+        const ours = projects.length
+            ? `software this organization maintains (${projects.join(", ")})`
+            : "software this organization maintains";
+
         parts.push("IMPORTANCE RATING:");
         parts.push("Classify this conversation group's overall importance as exactly one of \"high\", \"medium\", or \"low\":");
-        parts.push("- high: security vulnerabilities or incidents; outages or urgent operational issues; releases, network upgrades, or breaking changes that require users to act; major governance proposals or votes that are currently open");
-        parts.push("- medium: substantive technical or development discussion; grant approvals and funding awards; grant applications and funding discussions with active back-and-forth; roadmap/planning; notable community or user feedback; ecosystem and adoption news");
+        parts.push(`- high: security vulnerabilities or incidents; bug reports, defects, regressions, crashes, or resource-exhaustion problems in ${ours}, including ones reported by node operators or users; outages or urgent operational issues; releases, network upgrades, or breaking changes that require users to act; major governance proposals or votes that are currently open`);
+        parts.push(`- medium: substantive technical or development discussion that is not a bug report in ${ours}; grant approvals and funding awards; grant applications and funding discussions with active back-and-forth; roadmap/planning; notable community or user feedback; ecosystem and adoption news`);
         parts.push("- low: routine procedural announcements, including grant rejections or decisions not to advance a proposal; casual chatter; greetings; quick support Q&A; memes; off-topic conversation");
-        parts.push("High should be rare — most groups are medium or low. When in doubt between two levels, choose the lower one.");
+        parts.push("Rate the group at the importance of its single most important conversation — do not average across the group. One high-importance report in an otherwise routine thread makes the whole group high.");
+        parts.push(`High should be rare — most groups are medium or low. When in doubt between two levels, choose the lower one, except for security issues and bug reports in ${ours}, which always rate high.`);
         parts.push("");
         parts.push("FORMATTING RULES:");
         parts.push("- Be brief. At most 5 bullets for high importance, 3 for medium, 2 for low; one sentence per bullet, max ~25 words.");

@@ -51,7 +51,7 @@ Other `AiSdkProcessor` behaviors worth knowing before editing it:
 - **Token budget:** Gemini 3.x reasoning tokens count against `maxOutputTokens` (`MAX_SUMMARY_TOKENS`), so the budget must leave headroom above the visible text or generation fails mid-JSON.
 - **Retry:** `p-retry` retries transient failures (429/5xx/network/parse) but `AbortError`s out of permanent `APICallError`s (auth/bad-request) so it doesn't burn retries.
 - **Truncation** (`truncateMessages`) keeps the **newest** messages when a group exceeds `MAX_INPUT_CHARS_PER_GROUP`, dropping the oldest.
-- The prompt's **importance rubric** (high/medium/low) is defined inline in `pushSharedRules()`.
+- The prompt's **importance rubric** (high/medium/low) is defined inline in `pushSharedRules()`. Its `high` tier is parameterized by `MAINTAINED_PROJECTS`: bug reports, regressions, and crashes in software this org maintains rate `high`, and the configured project names are interpolated into the rubric (the parenthetical is omitted when the variable is unset). The rubric also instructs the model to rate a group at its *most important* conversation rather than averaging — a single high-signal bug report in an otherwise routine thread must not be diluted to `medium`.
 
 ### Importance ranking
 
