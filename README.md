@@ -9,7 +9,7 @@ Synapse is an intelligent community digest bot designed to aggregate, summarize,
 
 - **Multi-Source Ingestion**: Seamlessly ingests messages from **Discord** channels and **Discourse** forums.
 - **Intelligent Summarization**: Powered by the **Vercel AI SDK**, Synapse uses advanced LLMs (like Google Gemini) to generate concise, context-aware summaries of conversations.
-- **Slack Destination**: Delivers beautifully formatted daily digests directly to your **Slack** workspace.
+- **Slack Destination**: Delivers beautifully formatted weekday digests directly to your **Slack** workspace — weekends are skipped and rolled into Monday's digest.
 - **Extensible Design**: Built on a modular architecture, making it easily extensible to support additional sources (e.g., GitHub, Telegram) and destinations (e.g., Email, Notion).
 
 ## Architecture

@@ -1,17 +1,22 @@
 // utils/time.ts
-export function getDigestWindow(hours: number): { start: Date; end: Date } {
-  const end = new Date();
-  const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
-  return { start, end };
-}
 
-// Returns UTC daily window (midnight to midnight) for a given UTC date
-export function getUtcDailyWindowFrom(candidateUtc: Date): { start: Date; end: Date; dateTitle: string } {
-  const y = candidateUtc.getUTCFullYear();
-  const m = candidateUtc.getUTCMonth();
-  const d = candidateUtc.getUTCDate();
-  const start = new Date(Date.UTC(y, m, d, 0, 0, 0));
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-  const dateTitle = start.toISOString().slice(0, 10);
-  return { start, end, dateTitle };
+// Sat + Sun: the two runs the weekend skip suppresses. Monday's window is
+// extended by exactly this much so the skipped days are covered with no gap.
+export const WEEKEND_EXTRA_HOURS = 48;
+
+// Decides whether this run happens at all, and how far back it looks.
+// Weekday is read in UTC: the job fires at 13:00 UTC, far from any midnight
+// boundary, so no populated timezone disagrees about which day it is.
+// `skipWeekend` gates the whole policy — false restores plain daily behaviour
+// (weekend runs happen AND Monday gets no extension).
+export function getRunSchedule(
+  now: Date,
+  skipWeekend: boolean
+): { skip: boolean; extraHours: number } {
+  if (!skipWeekend) return { skip: false, extraHours: 0 };
+
+  const day = now.getUTCDay(); // 0 = Sun, 1 = Mon, 6 = Sat
+  if (day === 0 || day === 6) return { skip: true, extraHours: 0 };
+
+  return { skip: false, extraHours: day === 1 ? WEEKEND_EXTRA_HOURS : 0 };
 }

@@ -45,7 +45,10 @@ export function buildDigestBlocks(params: {
     logger.debug("[DEBUG] buildDigestBlocks items count:", params.items.length);
   }
 
-  const range = `Time window: ${params.dateTitle} 00:00–${params.end.toISOString().slice(0, 10)} 00:00 UTC`;
+  // Describe the window actually fetched (a rolling span ending now), not a
+  // calendar day — on Mondays this spans the weekend.
+  const fmtUtc = (d: Date) => d.toISOString().slice(0, 16).replace("T", " ");
+  const range = `Time window: ${fmtUtc(params.start)}–${fmtUtc(params.end)} UTC`;
 
   const legend = "🔴 urgent · 🟡 notable · ⚪ routine";
 

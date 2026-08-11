@@ -71,6 +71,14 @@ const ConfigSchema = z.object({
     z.number().int().min(1).default(24)
   ),
 
+  // Suppress Saturday/Sunday runs and roll the weekend into Monday's digest
+  // (Monday looks back DIGEST_WINDOW_HOURS + 48). Setting this false restores
+  // plain daily behaviour: weekend runs happen and Monday gets no extension.
+  SKIP_WEEKEND: z.preprocess(
+    toBool,
+    z.boolean().default(true)
+  ),
+
   LOG_LEVEL: z.preprocess(toStr, z.string().default("info")),
 
   MIN_MESSAGE_LENGTH: z.preprocess(
@@ -127,6 +135,7 @@ export type Config = {
   MAX_INPUT_CHARS_PER_GROUP: number;
   DRY_RUN: boolean;
   DIGEST_WINDOW_HOURS: number;
+  SKIP_WEEKEND: boolean;
   LOG_LEVEL: string;
   MIN_MESSAGE_LENGTH: number;
   EXCLUDE_COMMANDS: boolean;
@@ -197,6 +206,7 @@ export function loadConfig(): Config {
     geminiModel: config.GEMINI_MODEL,
     dryRun: config.DRY_RUN,
     digestWindowHours: config.DIGEST_WINDOW_HOURS,
+    skipWeekend: config.SKIP_WEEKEND,
     maxSummaryTokens: config.MAX_SUMMARY_TOKENS,
     maxInputCharsPerGroup: config.MAX_INPUT_CHARS_PER_GROUP,
     logLevel: config.LOG_LEVEL,

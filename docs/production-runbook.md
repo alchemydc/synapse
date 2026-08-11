@@ -16,11 +16,26 @@ Why this setup:
 ## 2) Trigger Strategy
 
 Primary trigger:
-- Cloud Scheduler invokes `workflow_dispatch` daily.
+- Cloud Scheduler invokes `workflow_dispatch` daily, seven days a week.
 
 Fallback trigger:
-- Keep the existing `schedule` block in the workflow as a best-effort backup.
+- The workflow is `workflow_dispatch` only — it has no `schedule` block. Cloud Scheduler is the sole automated trigger.
 - Keep `workflow_dispatch` enabled for manual recovery.
+
+## 2a) Weekday-Only Digests
+
+Cloud Scheduler still fires every day, but **the application itself no-ops on Saturday and
+Sunday (UTC)** and rolls the weekend into Monday:
+
+- Sat/Sun: the run starts, logs `Weekend (UTC) — skipping digest run`, and exits 0 before
+  contacting Discord, Discourse, Gemini, or Slack. **A green run with no Slack post is the
+  expected outcome on those days, not an incident.**
+- Mon: the lookback window is `DIGEST_WINDOW_HOURS + 48` (72h by default), covering
+  Fri 13:00 → Mon 13:00 UTC with no gap. Its Slack header shows a date range rather than a
+  single date.
+- `SKIP_WEEKEND` (repo Variable, default `true`) controls the whole policy. Setting it
+  `false` restores plain daily behaviour — weekend runs happen *and* Monday loses its
+  extension. Use it to force a one-off weekend run, then set it back.
 
 ## 3) Prerequisites
 
@@ -83,6 +98,7 @@ Required workflow variables (minimum):
 - `GEMINI_MODEL`
 - `MAX_SUMMARY_TOKENS`
 - `DIGEST_WINDOW_HOURS`
+- `SKIP_WEEKEND` (default `true`; see §2a)
 - `MIN_MESSAGE_LENGTH`
 - `EXCLUDE_COMMANDS`
 - `EXCLUDE_LINK_ONLY`
@@ -93,13 +109,22 @@ Required workflow variables (minimum):
 Check these once per day:
 - Cloud Scheduler job execution status is successful.
 - A corresponding successful run exists in the `Daily Digest` workflow.
-- Slack digest arrived in the expected channel.
+- Slack digest arrived in the expected channel — **Monday through Friday only.**
+
+On Saturday and Sunday, expect a successful workflow run and **no Slack post** (see §2a).
+Verify the run logged the weekend-skip line; a weekend run that posted a digest means
+`SKIP_WEEKEND` has been left `false`.
 
 ## 7) Alerting Baseline
 
 Set up two alerts:
 - **Trigger failure alert**: Cloud Scheduler job failed.
 - **Digest missing alert**: no successful `Daily Digest` run or no Slack post within expected window.
+  **Suppress the "no Slack post" half on Saturday and Sunday (UTC)** — it would otherwise fire
+  every weekend by design. The "no successful run" half still applies all seven days.
+
+A missing **Monday** digest is the most costly failure mode: it drops three days of community
+activity, not one. Escalate it accordingly and use the recovery procedure in §9.
 
 Target response objective:
 - Detect failure within 30 minutes of scheduled run.
@@ -149,6 +174,18 @@ If a daily run is missed:
 2. Manually dispatch the workflow (`workflow_dispatch`).
 3. Confirm Slack post delivery.
 4. Document incident summary and corrective action.
+
+A manual dispatch uses the same rolling window as a scheduled one, so recovering a *late* run
+needs a wider window to reach back to the missed period.
+
+If a **Monday** run is missed, it was carrying three days of content and a plain re-dispatch on
+Tuesday would only look back 24h. The job holds no state between runs, so widen the window
+manually:
+1. Set repo Variable `DIGEST_WINDOW_HOURS` to `96` (Fri 13:00 → Tue 13:00).
+2. Manually dispatch `Daily Digest`.
+3. Confirm Slack post delivery, then **restore `DIGEST_WINDOW_HOURS` to `24`.**
+
+Do not set `SKIP_WEEKEND=false` for this — that would also strip the Monday extension.
 
 ## 10) Security & Maintenance
 

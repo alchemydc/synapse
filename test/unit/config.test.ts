@@ -19,6 +19,7 @@ describe('Config Service', () => {
         delete process.env.MAX_SUMMARY_TOKENS;
         delete process.env.DRY_RUN;
         delete process.env.DIGEST_WINDOW_HOURS;
+        delete process.env.SKIP_WEEKEND;
         delete process.env.LOG_LEVEL;
         delete process.env.MIN_MESSAGE_LENGTH;
         delete process.env.EXCLUDE_COMMANDS;
@@ -32,6 +33,7 @@ describe('Config Service', () => {
         expect(config.MAX_SUMMARY_TOKENS).toBe(4000);
         expect(config.DRY_RUN).toBe(true);
         expect(config.DIGEST_WINDOW_HOURS).toBe(24);
+        expect(config.SKIP_WEEKEND).toBe(true);
         expect(config.LOG_LEVEL).toBe('info');
         expect(config.MIN_MESSAGE_LENGTH).toBe(20);
         expect(config.EXCLUDE_COMMANDS).toBe(true);
@@ -49,6 +51,7 @@ describe('Config Service', () => {
         process.env.MAX_INPUT_CHARS_PER_GROUP = '';
         process.env.DRY_RUN = '';
         process.env.DIGEST_WINDOW_HOURS = '';
+        process.env.SKIP_WEEKEND = '';
         process.env.LOG_LEVEL = '';
         process.env.MIN_MESSAGE_LENGTH = '';
         process.env.EXCLUDE_COMMANDS = '';
@@ -65,6 +68,7 @@ describe('Config Service', () => {
         expect(config.MAINTAINED_PROJECTS).toEqual([]);
         expect(config.DRY_RUN).toBe(true);
         expect(config.DIGEST_WINDOW_HOURS).toBe(24);
+        expect(config.SKIP_WEEKEND).toBe(true);
         expect(config.LOG_LEVEL).toBe('info');
         expect(config.MIN_MESSAGE_LENGTH).toBe(20);
         expect(config.EXCLUDE_COMMANDS).toBe(true);
@@ -78,6 +82,7 @@ describe('Config Service', () => {
         process.env.MAX_SUMMARY_TOKENS = '2000';
         process.env.DRY_RUN = 'false';
         process.env.DIGEST_WINDOW_HOURS = '48';
+        process.env.SKIP_WEEKEND = 'false';
         process.env.LOG_LEVEL = 'debug';
         process.env.MIN_MESSAGE_LENGTH = '10';
         process.env.EXCLUDE_COMMANDS = 'false';
@@ -89,6 +94,7 @@ describe('Config Service', () => {
         expect(config.MAX_SUMMARY_TOKENS).toBe(2000);
         expect(config.DRY_RUN).toBe(false);
         expect(config.DIGEST_WINDOW_HOURS).toBe(48);
+        expect(config.SKIP_WEEKEND).toBe(false);
         expect(config.LOG_LEVEL).toBe('debug');
         expect(config.MIN_MESSAGE_LENGTH).toBe(10);
         expect(config.EXCLUDE_COMMANDS).toBe(false);

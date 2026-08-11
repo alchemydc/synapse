@@ -29,11 +29,14 @@ export class DiscourseSource implements Source {
         return this.config.DISCOURSE_ENABLED;
     }
 
-    async fetchMessages(windowHours: number): Promise<NormalizedMessage[]> {
+    async fetchMessages(windowHours: number, extraHours = 0): Promise<NormalizedMessage[]> {
         if (!this.isEnabled()) return [];
 
         const now = Date.now();
-        const lookHours = this.config.DISCOURSE_LOOKBACK_HOURS ?? windowHours;
+        // The forum-specific override replaces the base window, but the weekend
+        // catch-up still stacks on top of it — otherwise a configured override
+        // would silently drop the whole weekend from Monday's digest.
+        const lookHours = (this.config.DISCOURSE_LOOKBACK_HOURS ?? windowHours) + extraHours;
         const since = now - lookHours * 60 * 60 * 1000;
         const maxTopics = this.config.DISCOURSE_MAX_TOPICS ?? 50;
 

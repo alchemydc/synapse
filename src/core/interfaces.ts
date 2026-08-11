@@ -5,7 +5,10 @@ import { DigestItem } from "./schemas";
 export interface Source {
     name: string;
     isEnabled(): boolean;
-    fetchMessages(windowHours: number): Promise<NormalizedMessage[]>;
+    // `extraHours` is the weekend catch-up added on Mondays. It is kept separate
+    // from `windowHours` so a source with its own lookback override (Discourse)
+    // can apply the extension on top of that override rather than lose it.
+    fetchMessages(windowHours: number, extraHours?: number): Promise<NormalizedMessage[]>;
 }
 
 export interface Destination {
