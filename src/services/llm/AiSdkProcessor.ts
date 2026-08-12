@@ -253,6 +253,13 @@ export class AiSdkProcessor implements Processor {
                 break;
             }
         }
+        // Truncation drops the OLDEST messages. On a Monday roll-up that is
+        // Friday's content, so make it visible rather than silent.
+        if (out.length < messages.length) {
+            logger.warn(
+                `Truncated group: kept ${out.length}/${messages.length} messages (limit ${maxChars} chars)`
+            );
+        }
         return out;
     }
 }

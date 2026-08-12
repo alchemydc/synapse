@@ -3,7 +3,7 @@ import { Source, Destination, Processor } from "./core/interfaces";
 import { NormalizedMessage, DigestContext } from "./core/types";
 import { Config } from "./config";
 import { logger } from "./utils/logger";
-import { getUtcDailyWindowFrom } from "./utils/time";
+import { getRunSchedule } from "./utils/time";
 import { applyMessageFilters } from "./utils/filters";
 import { buildDigestBlocks, formatDigest } from "./utils/format";
 import { DigestItem } from "./core/schemas";
@@ -52,7 +52,24 @@ export class DigestPipeline {
 
     async run() {
         logger.info("Starting digest pipeline...");
-        const { start, end, dateTitle } = getUtcDailyWindowFrom(new Date());
+
+        const now = new Date();
+        const { skip, extraHours } = getRunSchedule(now, this.config.SKIP_WEEKEND);
+        if (skip) {
+            logger.info("Weekend (UTC) — skipping digest run; content rolls into Monday.");
+            return;
+        }
+
+        // The window described in the header is the window actually fetched:
+        // a rolling `now - windowHours`, not a calendar day. On Monday that
+        // spans the weekend, so the title carries a range instead of one date.
+        const windowHours = this.config.DIGEST_WINDOW_HOURS + extraHours;
+        const end = now;
+        const start = new Date(end.getTime() - windowHours * 60 * 60 * 1000);
+        const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+        const dateTitle = extraHours > 0
+            ? `${isoDate(start)} → ${isoDate(end)}`
+            : isoDate(end);
         const context: DigestContext = { start, end, dateTitle };
 
         const allMessages: NormalizedMessage[] = [];
@@ -62,7 +79,7 @@ export class DigestPipeline {
             if (source.isEnabled()) {
                 logger.info(`Fetching from source: ${source.name}`);
                 try {
-                    const messages = await source.fetchMessages(this.config.DIGEST_WINDOW_HOURS);
+                    const messages = await source.fetchMessages(windowHours);
                     logger.info(`Fetched ${messages.length} messages from ${source.name}`);
                     allMessages.push(...messages);
                 } catch (err: any) {

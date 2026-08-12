@@ -5,6 +5,9 @@ import { DigestItem } from "./schemas";
 export interface Source {
     name: string;
     isEnabled(): boolean;
+    // Every source uses the same lookback, so the window advertised in the
+    // digest header is exactly the window fetched. Includes the Monday weekend
+    // catch-up when applicable.
     fetchMessages(windowHours: number): Promise<NormalizedMessage[]>;
 }
 

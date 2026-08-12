@@ -71,6 +71,14 @@ const ConfigSchema = z.object({
     z.number().int().min(1).default(24)
   ),
 
+  // Suppress Saturday/Sunday runs and roll the weekend into Monday's digest
+  // (Monday looks back DIGEST_WINDOW_HOURS + 48). Setting this false restores
+  // plain daily behaviour: weekend runs happen and Monday gets no extension.
+  SKIP_WEEKEND: z.preprocess(
+    toBool,
+    z.boolean().default(true)
+  ),
+
   LOG_LEVEL: z.preprocess(toStr, z.string().default("info")),
 
   MIN_MESSAGE_LENGTH: z.preprocess(
@@ -101,11 +109,6 @@ const ConfigSchema = z.object({
   DISCOURSE_API_KEY: z.preprocess(toStr, z.string()).optional(),
   DISCOURSE_API_USERNAME: z.preprocess(toStr, z.string()).optional(),
 
-  DISCOURSE_LOOKBACK_HOURS: z.preprocess(
-    toNum,
-    z.number().int().min(1)
-  ).optional(),
-
   DISCOURSE_MAX_TOPICS: z.preprocess(
     toNum,
     z.number().int().min(1)
@@ -127,6 +130,7 @@ export type Config = {
   MAX_INPUT_CHARS_PER_GROUP: number;
   DRY_RUN: boolean;
   DIGEST_WINDOW_HOURS: number;
+  SKIP_WEEKEND: boolean;
   LOG_LEVEL: string;
   MIN_MESSAGE_LENGTH: number;
   EXCLUDE_COMMANDS: boolean;
@@ -137,7 +141,6 @@ export type Config = {
   DISCOURSE_BASE_URL?: string;
   DISCOURSE_API_KEY?: string;
   DISCOURSE_API_USERNAME?: string;
-  DISCOURSE_LOOKBACK_HOURS?: number;
   DISCOURSE_MAX_TOPICS?: number;
 
 
@@ -178,7 +181,6 @@ export function loadConfig(): Config {
     DISCOURSE_BASE_URL: discoBase,
     DISCOURSE_API_KEY: raw.DISCOURSE_API_KEY,
     DISCOURSE_API_USERNAME: raw.DISCOURSE_API_USERNAME,
-    DISCOURSE_LOOKBACK_HOURS: raw.DISCOURSE_LOOKBACK_HOURS,
     DISCOURSE_MAX_TOPICS: raw.DISCOURSE_MAX_TOPICS,
 
     // derived enablement
@@ -197,6 +199,7 @@ export function loadConfig(): Config {
     geminiModel: config.GEMINI_MODEL,
     dryRun: config.DRY_RUN,
     digestWindowHours: config.DIGEST_WINDOW_HOURS,
+    skipWeekend: config.SKIP_WEEKEND,
     maxSummaryTokens: config.MAX_SUMMARY_TOKENS,
     maxInputCharsPerGroup: config.MAX_INPUT_CHARS_PER_GROUP,
     logLevel: config.LOG_LEVEL,
@@ -217,7 +220,6 @@ export function loadConfig(): Config {
       enabled: config.DISCOURSE_ENABLED,
       baseUrl: config.DISCOURSE_BASE_URL ? new URL(config.DISCOURSE_BASE_URL).hostname : undefined,
       maxTopics: config.DISCOURSE_MAX_TOPICS ?? null,
-      lookbackHours: config.DISCOURSE_LOOKBACK_HOURS ?? null,
     },
     secrets: {
       GEMINI_API_KEY: mask(process.env.GEMINI_API_KEY || ""),

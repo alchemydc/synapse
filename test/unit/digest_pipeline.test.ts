@@ -1,5 +1,5 @@
 // test/unit/digest_pipeline.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { DigestPipeline, DigestEntry, sortDigestEntries } from "../../src/DigestPipeline";
 import { Source, Destination, Processor } from "../../src/core/interfaces";
 import { Config } from "../../src/config";
@@ -62,6 +62,107 @@ describe("DigestPipeline", () => {
         expect(mockSource.fetchMessages).toHaveBeenCalled();
         expect(processor.process).toHaveBeenCalled();
         expect(mockDest.sendDigest).toHaveBeenCalled();
+    });
+
+    describe("weekend skip", () => {
+        // The pipeline reads the clock itself, so these cases drive it with a
+        // fixed system time. 13:00 UTC is the hour Cloud Scheduler fires.
+        const makeMocks = () => ({
+            source: {
+                name: "mock-source",
+                isEnabled: () => true,
+                fetchMessages: vi.fn().mockResolvedValue([
+                    {
+                        id: "1",
+                        source: "discord",
+                        channelId: "chan1",
+                        content: "valid message content",
+                        author: "user",
+                        createdAt: new Date().toISOString(),
+                        url: "http://url",
+                    } as NormalizedMessage,
+                ]),
+            } as Source,
+            dest: {
+                name: "mock-dest",
+                isEnabled: () => true,
+                sendDigest: vi.fn().mockResolvedValue(undefined),
+            } as Destination,
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        const runAt = async (iso: string, skipWeekend: boolean) => {
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date(iso));
+            config.SKIP_WEEKEND = skipWeekend;
+
+            const { source, dest } = makeMocks();
+            const p = new DigestPipeline(config, processor);
+            p.addSource(source);
+            p.addDestination(dest);
+            await p.run();
+            return { source, dest };
+        };
+
+        it("fetches nothing and sends nothing on Saturday", async () => {
+            const { source, dest } = await runAt("2026-08-15T13:00:00Z", true);
+
+            expect(source.fetchMessages).not.toHaveBeenCalled();
+            expect(processor.process).not.toHaveBeenCalled();
+            expect(dest.sendDigest).not.toHaveBeenCalled();
+        });
+
+        it("fetches nothing and sends nothing on Sunday", async () => {
+            const { source, dest } = await runAt("2026-08-09T13:00:00Z", true);
+
+            expect(source.fetchMessages).not.toHaveBeenCalled();
+            expect(dest.sendDigest).not.toHaveBeenCalled();
+        });
+
+        it("gives sources a 72h window on Monday (24 + 48 weekend catch-up)", async () => {
+            const { source, dest } = await runAt("2026-08-10T13:00:00Z", true);
+
+            expect(source.fetchMessages).toHaveBeenCalledWith(72);
+            expect(dest.sendDigest).toHaveBeenCalled();
+        });
+
+        it("gives sources the plain window on an ordinary weekday", async () => {
+            const { source } = await runAt("2026-08-11T13:00:00Z", true);
+
+            expect(source.fetchMessages).toHaveBeenCalledWith(24);
+        });
+
+        it("titles the Monday digest with the full weekend range", async () => {
+            const { dest } = await runAt("2026-08-10T13:00:00Z", true);
+
+            const context = (dest.sendDigest as any).mock.calls[0][2];
+            expect(context.dateTitle).toBe("2026-08-07 → 2026-08-10");
+            expect(context.start.toISOString()).toBe("2026-08-07T13:00:00.000Z");
+            expect(context.end.toISOString()).toBe("2026-08-10T13:00:00.000Z");
+        });
+
+        it("titles an ordinary weekday digest with a single date", async () => {
+            const { dest } = await runAt("2026-08-11T13:00:00Z", true);
+
+            const context = (dest.sendDigest as any).mock.calls[0][2];
+            expect(context.dateTitle).toBe("2026-08-11");
+        });
+
+        it("runs on Saturday with no extension when SKIP_WEEKEND is false", async () => {
+            const { source, dest } = await runAt("2026-08-15T13:00:00Z", false);
+
+            expect(source.fetchMessages).toHaveBeenCalledWith(24);
+            expect(dest.sendDigest).toHaveBeenCalled();
+        });
+
+        it("drops the Monday extension when SKIP_WEEKEND is false", async () => {
+            const { source } = await runAt("2026-08-10T13:00:00Z", false);
+
+            expect(source.fetchMessages).toHaveBeenCalledWith(24);
+        });
     });
 
     it("skips disabled sources", async () => {

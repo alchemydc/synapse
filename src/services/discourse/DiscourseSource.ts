@@ -33,11 +33,10 @@ export class DiscourseSource implements Source {
         if (!this.isEnabled()) return [];
 
         const now = Date.now();
-        const lookHours = this.config.DISCOURSE_LOOKBACK_HOURS ?? windowHours;
-        const since = now - lookHours * 60 * 60 * 1000;
+        const since = now - windowHours * 60 * 60 * 1000;
         const maxTopics = this.config.DISCOURSE_MAX_TOPICS ?? 50;
 
-        logger.debug(`Discourse fetch: since=${new Date(since).toISOString()} now=${new Date(now).toISOString()} lookHours=${lookHours}`);
+        logger.debug(`Discourse fetch: since=${new Date(since).toISOString()} now=${new Date(now).toISOString()} windowHours=${windowHours}`);
 
         const categoryMap = await this.fetchCategories();
         const messages: NormalizedMessage[] = [];
