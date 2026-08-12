@@ -79,7 +79,7 @@ export class DigestPipeline {
             if (source.isEnabled()) {
                 logger.info(`Fetching from source: ${source.name}`);
                 try {
-                    const messages = await source.fetchMessages(this.config.DIGEST_WINDOW_HOURS, extraHours);
+                    const messages = await source.fetchMessages(windowHours);
                     logger.info(`Fetched ${messages.length} messages from ${source.name}`);
                     allMessages.push(...messages);
                 } catch (err: any) {

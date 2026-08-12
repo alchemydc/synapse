@@ -5,8 +5,9 @@
 export const WEEKEND_EXTRA_HOURS = 48;
 
 // Decides whether this run happens at all, and how far back it looks.
-// Weekday is read in UTC: the job fires at 13:00 UTC, far from any midnight
-// boundary, so no populated timezone disagrees about which day it is.
+// The weekday is read in UTC so the decision never depends on the host's local
+// timezone. "Weekend" therefore means the UTC weekend, which will not match the
+// local calendar day everywhere — the digest itself is UTC-based throughout.
 // `skipWeekend` gates the whole policy — false restores plain daily behaviour
 // (weekend runs happen AND Monday gets no extension).
 export function getRunSchedule(

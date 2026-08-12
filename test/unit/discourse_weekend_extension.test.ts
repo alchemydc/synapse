@@ -22,11 +22,10 @@ function makeResp(body: any) {
 
 const HOUR = 60 * 60 * 1000;
 
-// A post from 80 hours ago: outside a 36h lookback, inside 36h + 48h of
-// weekend catch-up. This is the exact case where a configured
-// DISCOURSE_LOOKBACK_HOURS could silently swallow Monday's extension.
+// A post from 60 hours ago: outside an ordinary 24h weekday window, inside the
+// 72h window Monday uses to roll up the weekend.
 const TOPIC_ID = 4242;
-const agedDate = () => new Date(Date.now() - 80 * HOUR).toISOString();
+const agedDate = () => new Date(Date.now() - 60 * HOUR).toISOString();
 
 function mockForum() {
   (fetch as unknown as Mock).mockImplementation(async (url: string) => {
@@ -52,7 +51,7 @@ function mockForum() {
   });
 }
 
-const baseConfig: Partial<Config> = {
+const config: Partial<Config> = {
   DISCOURSE_ENABLED: true,
   DISCOURSE_BASE_URL: "https://forum.example",
   DISCOURSE_API_KEY: "key",
@@ -60,7 +59,7 @@ const baseConfig: Partial<Config> = {
   DISCOURSE_MAX_TOPICS: 10,
 };
 
-describe("Discourse weekend extension", () => {
+describe("Discourse weekend window", () => {
   beforeEach(() => {
     (fetch as unknown as Mock).mockReset();
     mockForum();
@@ -70,47 +69,28 @@ describe("Discourse weekend extension", () => {
     (fetch as unknown as Mock).mockReset();
   });
 
-  it("stacks the extension on top of DISCOURSE_LOOKBACK_HOURS", async () => {
-    const source = new DiscourseSource({
-      ...baseConfig,
-      DISCOURSE_LOOKBACK_HOURS: 36,
-    } as Config);
+  it("reaches weekend content when given Monday's 72h window", async () => {
+    const source = new DiscourseSource(config as Config);
 
-    // 36h override + 48h weekend catch-up = 84h, so the 80h-old post is in.
-    const msgs = await source.fetchMessages(24, 48);
+    const msgs = await source.fetchMessages(72);
 
     expect(msgs.length).toBe(1);
     expect(msgs[0].topicId).toBe(TOPIC_ID);
   });
 
-  it("honours the override alone when there is no extension", async () => {
-    const source = new DiscourseSource({
-      ...baseConfig,
-      DISCOURSE_LOOKBACK_HOURS: 36,
-    } as Config);
+  it("excludes that same content on an ordinary 24h window", async () => {
+    const source = new DiscourseSource(config as Config);
 
-    const msgs = await source.fetchMessages(24, 0);
+    const msgs = await source.fetchMessages(24);
 
     expect(msgs.length).toBe(0);
   });
 
-  it("stacks the extension on the base window when no override is set", async () => {
-    const source = new DiscourseSource({ ...baseConfig } as Config);
+  it("uses only the window it is given — there is no forum-specific override", async () => {
+    const source = new DiscourseSource(config as Config);
 
-    // 24h base + 48h = 72h, which does not reach an 80h-old post.
-    expect((await source.fetchMessages(24, 48)).length).toBe(0);
-    // 36h base + 48h = 84h, which does.
-    expect((await source.fetchMessages(36, 48)).length).toBe(1);
-  });
-
-  it("defaults extraHours to zero when the argument is omitted", async () => {
-    const source = new DiscourseSource({
-      ...baseConfig,
-      DISCOURSE_LOOKBACK_HOURS: 96,
-    } as Config);
-
-    const msgs = await source.fetchMessages(24);
-
-    expect(msgs.length).toBe(1);
+    // Boundary: 60h of content, so 59h misses it and 61h catches it.
+    expect((await source.fetchMessages(59)).length).toBe(0);
+    expect((await source.fetchMessages(61)).length).toBe(1);
   });
 });

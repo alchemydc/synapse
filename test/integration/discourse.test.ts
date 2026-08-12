@@ -34,7 +34,6 @@ describe('DiscourseSource Integration', () => {
             DISCOURSE_BASE_URL: 'https://forum.example.com',
             DISCOURSE_API_KEY: 'key',
             DISCOURSE_API_USERNAME: 'user',
-            DISCOURSE_LOOKBACK_HOURS: 24,
         } as any;
         discourseSource = new DiscourseSource(config);
     });

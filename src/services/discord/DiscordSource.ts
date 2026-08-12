@@ -19,7 +19,7 @@ export class DiscordSource implements Source {
         return this.config.DISCORD_ENABLED;
     }
 
-    async fetchMessages(windowHours: number, extraHours = 0): Promise<NormalizedMessage[]> {
+    async fetchMessages(windowHours: number): Promise<NormalizedMessage[]> {
         if (!this.isEnabled()) return [];
 
         const token = this.config.DISCORD_TOKEN;
@@ -46,7 +46,7 @@ export class DiscordSource implements Source {
         }
 
         const now = Date.now();
-        const since = now - (windowHours + extraHours) * 60 * 60 * 1000;
+        const since = now - windowHours * 60 * 60 * 1000;
         const messages: NormalizedMessage[] = [];
 
         try {

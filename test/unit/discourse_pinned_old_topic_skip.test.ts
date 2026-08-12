@@ -70,7 +70,6 @@ describe("Discourse pagination & pinned topic handling", () => {
       DISCOURSE_BASE_URL: "https://forum.example",
       DISCOURSE_API_KEY: "key",
       DISCOURSE_API_USERNAME: "user",
-      DISCOURSE_LOOKBACK_HOURS: 24,
       DISCOURSE_MAX_TOPICS: 10,
     };
 
@@ -122,7 +121,6 @@ describe("Discourse pagination & pinned topic handling", () => {
       DISCOURSE_BASE_URL: "https://forum.example",
       DISCOURSE_API_KEY: "key",
       DISCOURSE_API_USERNAME: "user",
-      DISCOURSE_LOOKBACK_HOURS: 24,
       DISCOURSE_MAX_TOPICS: 10,
     };
 
@@ -178,7 +176,6 @@ describe("Discourse pagination & pinned topic handling", () => {
       DISCOURSE_BASE_URL: "https://forum.example",
       DISCOURSE_API_KEY: "key",
       DISCOURSE_API_USERNAME: "user",
-      DISCOURSE_LOOKBACK_HOURS: 24,
       DISCOURSE_MAX_TOPICS: 10,
     };
 

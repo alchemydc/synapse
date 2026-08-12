@@ -122,17 +122,17 @@ describe("DigestPipeline", () => {
             expect(dest.sendDigest).not.toHaveBeenCalled();
         });
 
-        it("passes the 48h weekend extension to sources on Monday", async () => {
+        it("gives sources a 72h window on Monday (24 + 48 weekend catch-up)", async () => {
             const { source, dest } = await runAt("2026-08-10T13:00:00Z", true);
 
-            expect(source.fetchMessages).toHaveBeenCalledWith(24, 48);
+            expect(source.fetchMessages).toHaveBeenCalledWith(72);
             expect(dest.sendDigest).toHaveBeenCalled();
         });
 
-        it("passes no extension on an ordinary weekday", async () => {
+        it("gives sources the plain window on an ordinary weekday", async () => {
             const { source } = await runAt("2026-08-11T13:00:00Z", true);
 
-            expect(source.fetchMessages).toHaveBeenCalledWith(24, 0);
+            expect(source.fetchMessages).toHaveBeenCalledWith(24);
         });
 
         it("titles the Monday digest with the full weekend range", async () => {
@@ -154,14 +154,14 @@ describe("DigestPipeline", () => {
         it("runs on Saturday with no extension when SKIP_WEEKEND is false", async () => {
             const { source, dest } = await runAt("2026-08-15T13:00:00Z", false);
 
-            expect(source.fetchMessages).toHaveBeenCalledWith(24, 0);
+            expect(source.fetchMessages).toHaveBeenCalledWith(24);
             expect(dest.sendDigest).toHaveBeenCalled();
         });
 
         it("drops the Monday extension when SKIP_WEEKEND is false", async () => {
             const { source } = await runAt("2026-08-10T13:00:00Z", false);
 
-            expect(source.fetchMessages).toHaveBeenCalledWith(24, 0);
+            expect(source.fetchMessages).toHaveBeenCalledWith(24);
         });
     });
 

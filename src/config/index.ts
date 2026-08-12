@@ -109,11 +109,6 @@ const ConfigSchema = z.object({
   DISCOURSE_API_KEY: z.preprocess(toStr, z.string()).optional(),
   DISCOURSE_API_USERNAME: z.preprocess(toStr, z.string()).optional(),
 
-  DISCOURSE_LOOKBACK_HOURS: z.preprocess(
-    toNum,
-    z.number().int().min(1)
-  ).optional(),
-
   DISCOURSE_MAX_TOPICS: z.preprocess(
     toNum,
     z.number().int().min(1)
@@ -146,7 +141,6 @@ export type Config = {
   DISCOURSE_BASE_URL?: string;
   DISCOURSE_API_KEY?: string;
   DISCOURSE_API_USERNAME?: string;
-  DISCOURSE_LOOKBACK_HOURS?: number;
   DISCOURSE_MAX_TOPICS?: number;
 
 
@@ -187,7 +181,6 @@ export function loadConfig(): Config {
     DISCOURSE_BASE_URL: discoBase,
     DISCOURSE_API_KEY: raw.DISCOURSE_API_KEY,
     DISCOURSE_API_USERNAME: raw.DISCOURSE_API_USERNAME,
-    DISCOURSE_LOOKBACK_HOURS: raw.DISCOURSE_LOOKBACK_HOURS,
     DISCOURSE_MAX_TOPICS: raw.DISCOURSE_MAX_TOPICS,
 
     // derived enablement
@@ -227,7 +220,6 @@ export function loadConfig(): Config {
       enabled: config.DISCOURSE_ENABLED,
       baseUrl: config.DISCOURSE_BASE_URL ? new URL(config.DISCOURSE_BASE_URL).hostname : undefined,
       maxTopics: config.DISCOURSE_MAX_TOPICS ?? null,
-      lookbackHours: config.DISCOURSE_LOOKBACK_HOURS ?? null,
     },
     secrets: {
       GEMINI_API_KEY: mask(process.env.GEMINI_API_KEY || ""),
