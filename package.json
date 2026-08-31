@@ -29,9 +29,9 @@
     "node": ">=24 <25"
   },
   "dependencies": {
-    "@ai-sdk/google": "^4.0.23",
-    "@slack/web-api": "^8.0.0",
-    "ai": "^7.0.36",
+    "@ai-sdk/google": "^4.0.56",
+    "@slack/web-api": "^8.1.1",
+    "ai": "^7.0.83",
     "date-fns": "^4.4.0",
     "discord.js": "^14.27.0",
     "dotenv": "^17.4.2",
